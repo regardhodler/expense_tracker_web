@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+data/expenses.db
+data/config.yaml
+.streamlit/secrets.toml
+tunnel.log
+tracker.log
+*.egg-info/
+dist/
+build/

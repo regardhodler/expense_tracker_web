@@ -1,0 +1,13 @@
+# Exclude local data - use volume mount in production
+data/
+
+# Git and IDE
+.git
+.gitignore
+*.md
+.env
+
+# Logs and temp files
+*.log
+__pycache__
+*.pyc
