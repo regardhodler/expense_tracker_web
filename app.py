@@ -1,10 +1,8 @@
 """Expense Tracker — Streamlit app for couples to track shared expenses."""
 
-import os
 import calendar
 from datetime import date, datetime
 
-import yaml
 import pandas as pd
 import streamlit as st
 import streamlit_authenticator as stauth
@@ -45,33 +43,26 @@ def inject_pwa():
 # ---------------------------------------------------------------------------
 # Config & setup
 # ---------------------------------------------------------------------------
-# Support DATA_DIR env var for deployment (e.g. volume mount at /app/data)
+
 def _get_secret(key: str, default: str = "") -> str:
     """Read from Streamlit secrets first, then env vars, then default."""
     try:
         return st.secrets[key]
     except (KeyError, FileNotFoundError):
+        import os
         return os.environ.get(key, default)
-
-DATA_DIR = os.environ.get("DATA_DIR") or os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "data"
-)
-CONFIG_PATH = os.path.join(DATA_DIR, "config.yaml")
 
 st.set_page_config(page_title="Expense Tracker", page_icon="$", layout="wide")
 
 
-def ensure_config():
-    """Create config.yaml with default credentials on first run."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if os.path.exists(CONFIG_PATH):
-        return
-    # Use env vars in production; defaults for local dev
+@st.cache_data(ttl=3600)
+def _build_auth_config() -> dict:
+    """Build authentication config in memory (no file I/O). Cached 1 hour."""
     pw_husband = _get_secret("HUSBAND_PASSWORD", "changeme123")
     pw_wife = _get_secret("WIFE_PASSWORD", "changeme123")
     cookie_key = _get_secret("COOKIE_KEY", "expense_tracker_secret_key_change_me")
     hashed = stauth.Hasher([pw_husband, pw_wife]).generate()
-    config = {
+    return {
         "credentials": {
             "usernames": {
                 "husband": {
@@ -92,17 +83,13 @@ def ensure_config():
             "expiry_days": 30,
         },
     }
-    with open(CONFIG_PATH, "w") as f:
-        yaml.dump(config, f, default_flow_style=False)
 
 
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
 def authenticate():
-    ensure_config()
-    with open(CONFIG_PATH) as f:
-        config = yaml.safe_load(f)
+    config = _build_auth_config()
 
     authenticator = stauth.Authenticate(
         config["credentials"],
