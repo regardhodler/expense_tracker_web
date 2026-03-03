@@ -1,18 +1,25 @@
 """Expense Tracker — Streamlit app for couples to track shared expenses."""
 
 import calendar
+import io
 from datetime import date, datetime
 
 import pandas as pd
 import streamlit as st
 import streamlit_authenticator as stauth
 
-from database import init_db, add_expense, delete_expense, get_expenses_between, get_recent_expenses
+from database import (
+    init_db, add_expense, delete_expense, get_expenses_between, get_recent_expenses,
+    get_budgets, set_budget, get_monthly_category_totals,
+    add_recurring_expense, get_recurring_expenses, deactivate_recurring_expense,
+    process_recurring_expenses,
+)
 from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
     get_period_dates, category_summary, daily_totals_for_month,
 )
 from visualization import pie_chart, bar_chart, monthly_trend_chart
+from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
 
 # ---------------------------------------------------------------------------
 # PWA support
@@ -102,6 +109,17 @@ def authenticate():
 
 
 # ---------------------------------------------------------------------------
+# CSV helper
+# ---------------------------------------------------------------------------
+
+def _df_to_csv_bytes(df: pd.DataFrame) -> bytes:
+    """Convert a DataFrame to CSV bytes for download."""
+    buf = io.StringIO()
+    df.to_csv(buf, index=False)
+    return buf.getvalue().encode("utf-8")
+
+
+# ---------------------------------------------------------------------------
 # Pages
 # ---------------------------------------------------------------------------
 
@@ -120,6 +138,20 @@ def page_dashboard(username: str):
     col1, col2 = st.columns(2)
     col1.metric("This Month", f"${month_total:,.2f}")
     col2.metric("Year to Date", f"${ytd_total:,.2f}")
+
+    # Over-budget warnings
+    budgets = get_budgets()
+    if budgets:
+        category_totals = get_monthly_category_totals(today.year, today.month)
+        for b in budgets:
+            spent = category_totals.get(b["category"], 0)
+            if spent > b["monthly_limit"]:
+                over = spent - b["monthly_limit"]
+                st.error(
+                    f"**{b['category']}** is over budget! "
+                    f"${spent:,.2f} / ${b['monthly_limit']:,.2f} "
+                    f"(${over:,.2f} over)"
+                )
 
     # Recent expenses
     st.subheader("Recent Expenses")
@@ -150,25 +182,41 @@ def page_add_expense(username: str):
         with col1:
             exp_date = st.date_input("Date", value=date.today())
         with col2:
-            amount = st.number_input("Amount ($)", min_value=0.01, step=0.01, format="%.2f")
+            amount = st.number_input(
+                "Amount ($)", min_value=0.01, max_value=MAX_AMOUNT, step=0.01, format="%.2f",
+            )
 
         category = st.selectbox("Category", CATEGORIES)
 
         if category == "Others":
-            description = st.text_input("Description (required for Others)", "")
+            description = st.text_input("Description (required for Others)", "", max_chars=MAX_DESCRIPTION_LENGTH)
         else:
-            description = st.text_input("Description (optional)", "")
+            description = st.text_input("Description (optional)", "", max_chars=MAX_DESCRIPTION_LENGTH)
 
         submitted = st.form_submit_button("Add Expense", use_container_width=True)
 
         if submitted:
-            if amount <= 0:
-                st.error("Amount must be positive.")
-            elif category == "Others" and not description.strip():
-                st.error("Description is required for 'Others' category.")
+            # Check for duplicate (fetch today's expenses for comparison)
+            day_expenses = get_expenses_between(exp_date, exp_date)
+            confirm = st.session_state.get("_confirm_duplicate", False)
+
+            valid, msg = validate_expense(
+                amount, category, description.strip(),
+                existing_expenses=day_expenses,
+                exp_date=exp_date,
+                confirm_duplicate=confirm,
+            )
+
+            if not valid:
+                if msg.startswith("DUPLICATE:"):
+                    st.warning(msg.replace("DUPLICATE: ", ""))
+                    st.session_state["_confirm_duplicate"] = True
+                else:
+                    st.error(msg)
             else:
                 add_expense(exp_date, amount, category, description.strip(), username)
                 st.success(f"Added ${amount:,.2f} for {category} on {exp_date}!")
+                st.session_state.pop("_confirm_duplicate", None)
 
 
 def page_monthly_view(username: str):
@@ -222,6 +270,18 @@ def page_monthly_view(username: str):
         st.dataframe(summary, use_container_width=True, hide_index=True)
         st.markdown(f"**Grand Total: ${total:,.2f}**")
 
+    # CSV download for this month
+    if not df.empty:
+        csv_df = df[["date", "amount", "category", "description", "added_by"]].copy()
+        csv_df["date"] = csv_df["date"].dt.strftime("%Y-%m-%d")
+        csv_df.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+        st.download_button(
+            "Download CSV",
+            data=_df_to_csv_bytes(csv_df),
+            file_name=f"expenses_{year}_{month:02d}.csv",
+            mime="text/csv",
+        )
+
     # Expense list for this month
     if not df.empty:
         with st.expander("All expenses this month"):
@@ -260,6 +320,17 @@ def page_analysis(username: str):
     st.subheader(f"Total Spent: ${total:,.2f}")
     st.caption(f"Period: {start} to {end}")
 
+    # CSV download for this period
+    csv_df = df[["date", "amount", "category", "description", "added_by"]].copy()
+    csv_df["date"] = csv_df["date"].dt.strftime("%Y-%m-%d")
+    csv_df.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+    st.download_button(
+        "Download CSV",
+        data=_df_to_csv_bytes(csv_df),
+        file_name=f"expenses_{start}_{end}.csv",
+        mime="text/csv",
+    )
+
     # Category table with warnings
     st.subheader("Per-Category Breakdown")
     display_summary = summary.copy()
@@ -293,6 +364,102 @@ def page_analysis(username: str):
         trend = monthly_trend_chart(df)
         if trend:
             st.plotly_chart(trend, use_container_width=True)
+
+
+def page_budgets(username: str):
+    st.header("Budget Tracking")
+
+    # Set budgets
+    st.subheader("Set Monthly Budgets")
+    with st.form("budget_form"):
+        category = st.selectbox("Category", CATEGORIES)
+        limit = st.number_input("Monthly Limit ($)", min_value=0.01, max_value=MAX_AMOUNT, step=10.0, format="%.2f")
+        if st.form_submit_button("Set Budget", use_container_width=True):
+            set_budget(category, limit, username)
+            st.success(f"Budget for {category} set to ${limit:,.2f}")
+
+    # Show current budgets with progress
+    st.subheader("Current Month Progress")
+    today = date.today()
+    budgets = get_budgets()
+
+    if not budgets:
+        st.info("No budgets set yet. Use the form above to set category limits.")
+        return
+
+    category_totals = get_monthly_category_totals(today.year, today.month)
+
+    for b in budgets:
+        cat = b["category"]
+        limit_val = b["monthly_limit"]
+        spent = category_totals.get(cat, 0)
+        pct = min(spent / limit_val, 1.0) if limit_val > 0 else 0
+
+        col1, col2, col3 = st.columns([3, 1, 1])
+        with col1:
+            st.progress(pct, text=f"{cat}")
+        with col2:
+            st.caption(f"${spent:,.2f} / ${limit_val:,.2f}")
+        with col3:
+            if spent > limit_val:
+                st.error(f"Over by ${spent - limit_val:,.2f}")
+            else:
+                st.caption(f"${limit_val - spent:,.2f} left")
+
+
+def page_recurring(username: str):
+    st.header("Recurring Payments")
+
+    # Add recurring
+    st.subheader("Add Recurring Expense")
+    with st.form("recurring_form", clear_on_submit=True):
+        name = st.text_input("Name (e.g. Rent, Netflix)", max_chars=100)
+        col1, col2 = st.columns(2)
+        with col1:
+            amount = st.number_input("Amount ($)", min_value=0.01, max_value=MAX_AMOUNT, step=0.01, format="%.2f")
+        with col2:
+            category = st.selectbox("Category", CATEGORIES)
+        description = st.text_input("Description (optional)", "", max_chars=MAX_DESCRIPTION_LENGTH)
+
+        col3, col4 = st.columns(2)
+        with col3:
+            frequency = st.selectbox("Frequency", ["monthly", "weekly", "biweekly"])
+        with col4:
+            day_of_month = st.number_input("Day of Month (for monthly)", min_value=1, max_value=28, value=1)
+
+        if st.form_submit_button("Add Recurring Expense", use_container_width=True):
+            if not name.strip():
+                st.error("Name is required.")
+            else:
+                add_recurring_expense(
+                    name.strip(), amount, category, description.strip(),
+                    frequency, day_of_month, username,
+                )
+                st.success(f"Added recurring: {name} — ${amount:,.2f} ({frequency})")
+
+    # List existing
+    st.subheader("Active Recurring Expenses")
+    recurring = get_recurring_expenses(active_only=True)
+
+    if not recurring:
+        st.info("No active recurring expenses.")
+        return
+
+    for rec in recurring:
+        col1, col2, col3 = st.columns([4, 2, 1])
+        with col1:
+            st.markdown(
+                f"**{rec['name']}** — ${rec['amount']:,.2f} / {rec['frequency']}  \n"
+                f"Category: {rec['category']}"
+                + (f" | {rec['description']}" if rec['description'] else "")
+            )
+        with col2:
+            last = rec["last_added_date"] or "Never"
+            st.caption(f"Last added: {last}")
+        with col3:
+            if st.button("Deactivate", key=f"deactivate_{rec['id']}"):
+                deactivate_recurring_expense(rec["id"])
+                st.rerun()
 
 
 def page_delete_expense(username: str):
@@ -353,13 +520,19 @@ def main():
         st.warning("Please enter your credentials.")
         return
 
+    # Process recurring expenses once per session
+    if "recurring_processed" not in st.session_state:
+        process_recurring_expenses()
+        st.session_state["recurring_processed"] = True
+
     # Logged in
     st.sidebar.title(f"Hi, {name}!")
     authenticator.logout("Logout", "sidebar")
 
     page = st.sidebar.radio(
         "Navigate",
-        ["Dashboard", "Add Expense", "Monthly View", "Analysis", "Delete Expense"],
+        ["Dashboard", "Add Expense", "Monthly View", "Analysis",
+         "Budgets", "Recurring", "Delete Expense"],
     )
 
     pages = {
@@ -367,6 +540,8 @@ def main():
         "Add Expense": page_add_expense,
         "Monthly View": page_monthly_view,
         "Analysis": page_analysis,
+        "Budgets": page_budgets,
+        "Recurring": page_recurring,
         "Delete Expense": page_delete_expense,
     }
     pages[page](username)
