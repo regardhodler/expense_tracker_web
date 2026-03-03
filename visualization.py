@@ -58,6 +58,6 @@ def monthly_trend_chart(df: pd.DataFrame):
         xaxis_title="Month",
         yaxis_title="Amount ($)",
         margin=dict(t=20, b=20, l=20, r=20),
-        height=300,
+        height=500,
     )
     return fig
