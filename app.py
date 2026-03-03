@@ -253,38 +253,30 @@ def page_monthly_view(username: str):
     cal = calendar.Calendar(firstweekday=6)  # Sunday first
     weeks = cal.monthdayscalendar(year, month)
 
-    html = """<style>
-    .cal-table { width:100%; border-collapse:collapse; table-layout:fixed; }
-    .cal-table th { background:#1a1a2e; color:#ccc; padding:6px; text-align:center;
-        border:1px solid #333; font-size:0.85em; }
-    .cal-table td { border:1px solid #333; vertical-align:top; padding:4px 6px;
-        min-height:80px; height:80px; font-size:0.8em; background:#0e1117; }
-    .cal-table td.today { background:#1a2744; border:2px solid #4a8cff; }
-    .cal-table td.empty { background:#0a0a12; }
-    .cal-day-num { font-weight:bold; color:#e0e0e0; margin-bottom:3px; font-size:0.95em; }
-    .cal-expense { white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-        font-size:0.75em; line-height:1.4; }
-    .cal-total { font-size:0.75em; color:#ff6b6b; margin-top:2px; font-weight:bold; }
-    </style>
-    <table class="cal-table"><tr>"""
+    TH_STYLE = "background:#1a1a2e;color:#ccc;padding:6px;text-align:center;border:1px solid #333;font-size:0.85em"
+    TD_STYLE = "border:1px solid #333;vertical-align:top;padding:4px 6px;height:80px;font-size:0.8em;background:#0e1117"
+    TD_TODAY = "border:2px solid #4a8cff;vertical-align:top;padding:4px 6px;height:80px;font-size:0.8em;background:#1a2744"
+    TD_EMPTY = "border:1px solid #333;vertical-align:top;padding:4px 6px;height:80px;font-size:0.8em;background:#0a0a12"
+
+    html = '<table style="width:100%;border-collapse:collapse;table-layout:fixed"><tr>'
 
     for day_name in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]:
-        html += f"<th>{day_name}</th>"
+        html += f'<th style="{TH_STYLE}">{day_name}</th>'
     html += "</tr>"
 
     for week in weeks:
         html += "<tr>"
         for day in week:
             if day == 0:
-                html += '<td class="empty"></td>'
+                html += f'<td style="{TD_EMPTY}"></td>'
             else:
                 current_date = date(year, month, day)
                 is_today = current_date == today
-                td_class = ' class="today"' if is_today else ""
+                style = TD_TODAY if is_today else TD_STYLE
                 day_expenses = expenses_for_day(df, current_date)
 
-                html += f"<td{td_class}>"
-                html += f'<div class="cal-day-num">{day}</div>'
+                html += f'<td style="{style}">'
+                html += f'<div style="font-weight:bold;color:#e0e0e0;margin-bottom:3px;font-size:0.95em">{day}</div>'
 
                 if not day_expenses.empty:
                     for _, exp in day_expenses.iterrows():
@@ -292,12 +284,16 @@ def page_monthly_view(username: str):
                         color = CATEGORY_COLORS.get(cat, "#999")
                         amt = exp["amount"]
                         html += (
-                            f'<div class="cal-expense" style="color:{color}">'
+                            f'<div style="color:{color};white-space:nowrap;overflow:hidden;'
+                            f'text-overflow:ellipsis;font-size:0.75em;line-height:1.4">'
                             f"${amt:,.0f} {cat}</div>"
                         )
                     if len(day_expenses) > 1:
                         day_total = day_expenses["amount"].sum()
-                        html += f'<div class="cal-total">${day_total:,.2f}</div>'
+                        html += (
+                            f'<div style="font-size:0.75em;color:#ff6b6b;margin-top:2px;'
+                            f'font-weight:bold">${day_total:,.2f}</div>'
+                        )
 
                 html += "</td>"
         html += "</tr>"
