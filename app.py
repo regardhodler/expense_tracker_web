@@ -435,7 +435,10 @@ def page_recurring(username: str):
                     name.strip(), amount, category, description.strip(),
                     frequency, day_of_month, username,
                 )
+                # Re-trigger processing so the new recurring expense gets added immediately
+                st.session_state.pop("recurring_processed", None)
                 st.success(f"Added recurring: {name} — ${amount:,.2f} ({frequency})")
+                st.rerun()
 
     # List existing
     st.subheader("Active Recurring Expenses")
