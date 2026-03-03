@@ -17,6 +17,7 @@ from database import (
 from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
     get_period_dates, category_summary, daily_totals_for_month,
+    expenses_for_day,
 )
 from visualization import pie_chart, bar_chart, monthly_trend_chart
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
@@ -236,30 +237,73 @@ def page_monthly_view(username: str):
     rows = get_expenses_between(month_start, month_end)
     df = rows_to_dataframe(rows)
 
-    # Calendar-like grid
+    # Calendar grid
     st.subheader(f"{calendar.month_name[month]} {year}")
-    daily = daily_totals_for_month(df, year, month)
 
-    # Build calendar grid
+    CATEGORY_COLORS = {
+        "Housing": "#4CAF50",
+        "Food": "#FF9800",
+        "Health": "#E91E63",
+        "Transportation": "#2196F3",
+        "Personal": "#9C27B0",
+        "Entertainment": "#00BCD4",
+        "Others": "#607D8B",
+    }
+
     cal = calendar.Calendar(firstweekday=6)  # Sunday first
     weeks = cal.monthdayscalendar(year, month)
 
-    # Header row
-    header_cols = st.columns(7)
-    for i, day_name in enumerate(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]):
-        header_cols[i].markdown(f"**{day_name}**")
+    html = """<style>
+    .cal-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    .cal-table th { background:#1a1a2e; color:#ccc; padding:6px; text-align:center;
+        border:1px solid #333; font-size:0.85em; }
+    .cal-table td { border:1px solid #333; vertical-align:top; padding:4px 6px;
+        min-height:80px; height:80px; font-size:0.8em; background:#0e1117; }
+    .cal-table td.today { background:#1a2744; border:2px solid #4a8cff; }
+    .cal-table td.empty { background:#0a0a12; }
+    .cal-day-num { font-weight:bold; color:#e0e0e0; margin-bottom:3px; font-size:0.95em; }
+    .cal-expense { white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        font-size:0.75em; line-height:1.4; }
+    .cal-total { font-size:0.75em; color:#ff6b6b; margin-top:2px; font-weight:bold; }
+    </style>
+    <table class="cal-table"><tr>"""
+
+    for day_name in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]:
+        html += f"<th>{day_name}</th>"
+    html += "</tr>"
 
     for week in weeks:
-        cols = st.columns(7)
-        for i, day in enumerate(week):
+        html += "<tr>"
+        for day in week:
             if day == 0:
-                cols[i].write("")
+                html += '<td class="empty"></td>'
             else:
-                spent = daily.get(day, 0)
-                if spent > 0:
-                    cols[i].markdown(f"**{day}**  \n🔴 ${spent:,.0f}")
-                else:
-                    cols[i].markdown(f"{day}")
+                current_date = date(year, month, day)
+                is_today = current_date == today
+                td_class = ' class="today"' if is_today else ""
+                day_expenses = expenses_for_day(df, current_date)
+
+                html += f"<td{td_class}>"
+                html += f'<div class="cal-day-num">{day}</div>'
+
+                if not day_expenses.empty:
+                    for _, exp in day_expenses.iterrows():
+                        cat = exp["category"]
+                        color = CATEGORY_COLORS.get(cat, "#999")
+                        amt = exp["amount"]
+                        html += (
+                            f'<div class="cal-expense" style="color:{color}">'
+                            f"${amt:,.0f} {cat}</div>"
+                        )
+                    if len(day_expenses) > 1:
+                        day_total = day_expenses["amount"].sum()
+                        html += f'<div class="cal-total">${day_total:,.2f}</div>'
+
+                html += "</td>"
+        html += "</tr>"
+
+    html += "</table>"
+    st.markdown(html, unsafe_allow_html=True)
 
     # Category breakdown
     st.subheader("Category Breakdown")
