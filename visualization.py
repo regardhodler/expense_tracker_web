@@ -1,6 +1,7 @@
 """Plotly chart builders for the expense tracker."""
 
 import plotly.express as px
+import plotly.graph_objects as go
 import pandas as pd
 
 CATEGORY_COLORS = {
@@ -43,6 +44,35 @@ def bar_chart(summary_df: pd.DataFrame):
         margin=dict(t=30, b=20, l=20, r=20),
         height=500,
         yaxis_title="Amount ($)",
+    )
+    return fig
+
+
+def comparison_bar_chart(comparison_df: pd.DataFrame):
+    """Grouped bar chart comparing previous vs current month by category."""
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        name="Previous",
+        x=comparison_df["Category"],
+        y=comparison_df["Previous"],
+        marker_color="#6c8ebf",
+        text=comparison_df["Previous"].map("${:,.0f}".format),
+        textposition="outside",
+    ))
+    fig.add_trace(go.Bar(
+        name="Current",
+        x=comparison_df["Category"],
+        y=comparison_df["Current"],
+        marker_color="#EF553B",
+        text=comparison_df["Current"].map("${:,.0f}".format),
+        textposition="outside",
+    ))
+    fig.update_layout(
+        barmode="group",
+        height=500,
+        margin=dict(t=30, b=20, l=20, r=20),
+        yaxis_title="Amount ($)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     return fig
 

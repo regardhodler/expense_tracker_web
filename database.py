@@ -133,6 +133,30 @@ def add_expense(date_val: date, amount: float, category: str, description: str, 
     _sync_write(conn)
 
 
+def get_expense_by_id(expense_id: int) -> dict | None:
+    """Fetch a single expense by ID."""
+    conn = get_connection()
+    _sync_read(conn)
+    row = conn.execute(
+        "SELECT id, date, amount, category, description, added_by "
+        "FROM expenses WHERE id = ?",
+        (expense_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return dict(zip(_COLUMNS, row))
+
+
+def update_expense(expense_id: int, date_val: date, amount: float, category: str, description: str):
+    """Update an existing expense."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE expenses SET date = ?, amount = ?, category = ?, description = ? WHERE id = ?",
+        (date_val.isoformat(), round(amount, 2), category, description, expense_id),
+    )
+    _sync_write(conn)
+
+
 def delete_expense(expense_id: int):
     conn = get_connection()
     conn.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))

@@ -10,6 +10,7 @@ import streamlit_authenticator as stauth
 
 from database import (
     init_db, add_expense, delete_expense, get_expenses_between, get_recent_expenses,
+    get_expense_by_id, update_expense,
     get_budgets, set_budget, get_monthly_category_totals,
     add_recurring_expense, get_recurring_expenses, deactivate_recurring_expense,
     update_recurring_expense, process_recurring_expenses,
@@ -17,9 +18,9 @@ from database import (
 from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
     get_period_dates, category_summary, daily_totals_for_month,
-    expenses_for_day,
+    expenses_for_day, spending_projections, month_comparison,
 )
-from visualization import pie_chart, bar_chart, monthly_trend_chart
+from visualization import pie_chart, bar_chart, monthly_trend_chart, comparison_bar_chart
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
 
 # ---------------------------------------------------------------------------
@@ -46,6 +47,31 @@ def inject_pwa():
         """,
         unsafe_allow_html=True,
     )
+
+
+def inject_mobile_css():
+    """Responsive CSS for mobile devices."""
+    st.markdown("""
+        <style>
+        @media (max-width: 768px) {
+            /* Compact calendar */
+            table td, table th { height: 55px !important; font-size: 0.7em !important; padding: 2px 3px !important; }
+            /* Smaller metrics */
+            [data-testid="stMetricValue"] { font-size: 1.2rem !important; }
+            [data-testid="stMetricLabel"] { font-size: 0.75rem !important; }
+            [data-testid="stMetricDelta"] { font-size: 0.7rem !important; }
+        }
+        @media (max-width: 480px) {
+            /* Further compress calendar */
+            table td, table th { height: 40px !important; font-size: 0.6em !important; padding: 1px 2px !important; }
+            /* Force columns to stack */
+            [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; }
+            [data-testid="stHorizontalBlock"] > div { flex: 100% !important; min-width: 100% !important; }
+            /* Smaller metrics */
+            [data-testid="stMetricValue"] { font-size: 1rem !important; }
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -136,9 +162,56 @@ def page_dashboard(username: str):
     month_total = sum(r["amount"] for r in month_rows)
     ytd_total = sum(r["amount"] for r in ytd_rows)
 
+    # Previous month for comparison
+    if today.month == 1:
+        prev_month_start = date(today.year - 1, 12, 1)
+        prev_month_end = date(today.year - 1, 12, 31)
+    else:
+        prev_month_start = date(today.year, today.month - 1, 1)
+        prev_last_day = calendar.monthrange(today.year, today.month - 1)[1]
+        prev_month_end = date(today.year, today.month - 1, prev_last_day)
+    prev_month_rows = get_expenses_between(prev_month_start, prev_month_end)
+    prev_month_total = sum(r["amount"] for r in prev_month_rows)
+
+    month_delta = month_total - prev_month_total if prev_month_total > 0 else None
+
     col1, col2 = st.columns(2)
-    col1.metric("This Month", f"${month_total:,.2f}")
+    col1.metric("This Month", f"${month_total:,.2f}",
+                delta=f"${month_delta:,.2f}" if month_delta is not None else None,
+                delta_color="inverse")
     col2.metric("Year to Date", f"${ytd_total:,.2f}")
+
+    # Projections
+    if month_rows:
+        proj = spending_projections(month_rows, month_start, today)
+        p1, p2, p3 = st.columns(3)
+        p1.metric("Daily Average", f"${proj['daily_avg']:,.2f}")
+        p2.metric("Weekly Average", f"${proj['weekly_avg']:,.2f}")
+        p3.metric("Projected Month Total", f"${proj['projected_total']:,.2f}")
+        st.caption(
+            f"{proj['days_elapsed']} of {proj['days_in_month']} days into the month. "
+            f"Averaging ${proj['daily_avg']:,.2f}/day, on track for "
+            f"${proj['projected_total']:,.2f} this month."
+        )
+
+    # Month-over-Month comparison
+    if month_rows or prev_month_rows:
+        with st.expander("Month-over-Month Details"):
+            comp_df, cur_t, prev_t = month_comparison(month_rows, prev_month_rows)
+            if not comp_df.empty:
+                display_comp = comp_df.copy()
+                display_comp["Current"] = display_comp["Current"].map("${:,.2f}".format)
+                display_comp["Previous"] = display_comp["Previous"].map("${:,.2f}".format)
+                display_comp["Delta"] = comp_df["Delta"].map(
+                    lambda x: f"+${x:,.2f}" if x >= 0 else f"-${abs(x):,.2f}"
+                )
+                display_comp["Delta%"] = comp_df["Delta%"].map(
+                    lambda x: f"+{x:.1f}%" if x >= 0 else f"{x:.1f}%"
+                )
+                st.dataframe(display_comp, use_container_width=True, hide_index=True)
+                st.plotly_chart(comparison_bar_chart(comp_df), use_container_width=True)
+            else:
+                st.info("No data to compare.")
 
     # Over-budget warnings
     budgets = get_budgets()
@@ -577,46 +650,158 @@ def page_recurring(username: str):
                 st.rerun()
 
 
-def page_delete_expense(username: str):
-    st.header("Delete Expense")
-    st.caption("Select a date range to find expenses to delete.")
+def page_search(username: str):
+    st.header("Search & Filter")
+
+    # Filters
+    search_text = st.text_input("Search description", "", placeholder="e.g. groceries, rent...")
 
     col1, col2 = st.columns(2)
     with col1:
-        start = st.date_input("From", value=date.today().replace(day=1), key="del_start")
+        start = st.date_input("From", value=date.today().replace(day=1), key="search_start")
     with col2:
-        end = st.date_input("To", value=date.today(), key="del_end")
+        end = st.date_input("To", value=date.today(), key="search_end")
+
+    col3, col4 = st.columns(2)
+    with col3:
+        selected_categories = st.multiselect("Categories", CATEGORIES, default=CATEGORIES)
+    with col4:
+        selected_users = st.multiselect("Added by", ["husband", "wife"], default=["husband", "wife"])
+
+    col5, col6 = st.columns(2)
+    with col5:
+        min_amount = st.number_input("Min amount ($)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
+    with col6:
+        max_amount = st.number_input("Max amount ($)", min_value=0.0, value=0.0, step=1.0, format="%.2f",
+                                     help="Leave at 0 for no max limit")
+
+    # Fetch and filter
+    rows = get_expenses_between(start, end)
+    df = rows_to_dataframe(rows)
+
+    if df.empty:
+        st.info("No expenses found in this date range.")
+        return
+
+    mask = pd.Series(True, index=df.index)
+
+    if search_text.strip():
+        mask &= df["description"].fillna("").str.contains(search_text.strip(), case=False, na=False)
+    if selected_categories:
+        mask &= df["category"].isin(selected_categories)
+    if selected_users:
+        mask &= df["added_by"].isin(selected_users)
+    if min_amount > 0:
+        mask &= df["amount"] >= min_amount
+    if max_amount > 0:
+        mask &= df["amount"] <= max_amount
+
+    filtered = df[mask]
+
+    if filtered.empty:
+        st.info("No expenses match your filters.")
+        return
+
+    # Summary metrics
+    total = filtered["amount"].sum()
+    avg = filtered["amount"].mean()
+    count = len(filtered)
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Total", f"${total:,.2f}")
+    m2.metric("Average", f"${avg:,.2f}")
+    m3.metric("Count", f"{count}")
+
+    # Results table
+    display = filtered[["date", "amount", "category", "description", "added_by"]].copy()
+    display["date"] = display["date"].dt.strftime("%Y-%m-%d")
+    display.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+    display["Amount"] = filtered["amount"].map("${:,.2f}".format)
+    st.dataframe(display, use_container_width=True, hide_index=True)
+
+
+def page_manage_expenses(username: str):
+    st.header("Manage Expenses")
+
+    # --- Edit form (shown when editing) ---
+    editing_id = st.session_state.get("editing_expense_id")
+    if editing_id is not None:
+        expense = get_expense_by_id(editing_id)
+        if expense is None:
+            st.error("Expense not found.")
+            st.session_state.pop("editing_expense_id", None)
+            st.rerun()
+            return
+
+        st.subheader(f"Edit Expense #{editing_id}")
+        with st.form("edit_expense_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                e_date = st.date_input("Date", value=datetime.strptime(expense["date"], "%Y-%m-%d").date())
+            with col2:
+                e_amount = st.number_input(
+                    "Amount ($)", min_value=0.01, max_value=MAX_AMOUNT,
+                    step=0.01, format="%.2f", value=float(expense["amount"]),
+                )
+            cat_idx = CATEGORIES.index(expense["category"]) if expense["category"] in CATEGORIES else 0
+            e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
+            e_description = st.text_input("Description", value=expense["description"] or "",
+                                          max_chars=MAX_DESCRIPTION_LENGTH)
+
+            col_save, col_cancel = st.columns(2)
+            with col_save:
+                save = st.form_submit_button("Save Changes", use_container_width=True)
+            with col_cancel:
+                cancel = st.form_submit_button("Cancel", use_container_width=True)
+
+            if save:
+                valid, msg = validate_expense(
+                    e_amount, e_category, e_description.strip(),
+                    confirm_duplicate=True,
+                )
+                if not valid:
+                    st.error(msg)
+                else:
+                    update_expense(editing_id, e_date, e_amount, e_category, e_description.strip())
+                    st.session_state.pop("editing_expense_id", None)
+                    st.success("Expense updated!")
+                    st.rerun()
+            if cancel:
+                st.session_state.pop("editing_expense_id", None)
+                st.rerun()
+        return  # Don't show the rest while editing
+
+    # --- Expense list with edit/delete ---
+    st.caption("Select a date range to find expenses to edit or delete.")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        start = st.date_input("From", value=date.today().replace(day=1), key="manage_start")
+    with col2:
+        end = st.date_input("To", value=date.today(), key="manage_end")
 
     rows = get_expenses_between(start, end)
     if not rows:
         st.info("No expenses in this range.")
         return
 
-    df = pd.DataFrame(rows)
-    df_display = df[["id", "date", "amount", "category", "description", "added_by"]].copy()
-    df_display.columns = ["ID", "Date", "Amount", "Category", "Description", "Added By"]
-
-    st.dataframe(df_display, use_container_width=True, hide_index=True)
-
-    expense_id = st.number_input(
-        "Enter expense ID to delete",
-        min_value=0, step=1, value=0,
-        help="Find the ID from the table above",
-    )
-
-    if expense_id > 0:
-        target = next((r for r in rows if r["id"] == expense_id), None)
-        if target:
-            st.warning(
-                f"Delete: **{target['date']}** | ${target['amount']:,.2f} | "
-                f"{target['category']} | {target['description']} (by {target['added_by']})"
+    for row in rows:
+        col_info, col_edit, col_del = st.columns([5, 1, 1])
+        with col_info:
+            st.markdown(
+                f"**{row['date']}** | ${row['amount']:,.2f} | "
+                f"{row['category']} | {row['description'] or '—'} "
+                f"*(by {row['added_by']})*"
             )
-            if st.button("Confirm Delete", type="primary"):
-                delete_expense(expense_id)
+        with col_edit:
+            if st.button("Edit", key=f"edit_exp_{row['id']}"):
+                st.session_state["editing_expense_id"] = row["id"]
+                st.rerun()
+        with col_del:
+            if st.button("Delete", key=f"del_exp_{row['id']}"):
+                delete_expense(row["id"])
                 st.success("Expense deleted!")
                 st.rerun()
-        else:
-            st.error("ID not found in current results.")
 
 
 # ---------------------------------------------------------------------------
@@ -626,6 +811,7 @@ def page_delete_expense(username: str):
 def main():
     init_db()
     inject_pwa()
+    inject_mobile_css()
     authenticator, name, auth_status, username = authenticate()
 
     if auth_status is False:
@@ -647,7 +833,7 @@ def main():
     page = st.sidebar.radio(
         "Navigate",
         ["Dashboard", "Add Expense", "Monthly View", "Analysis",
-         "Budgets", "Recurring", "Delete Expense"],
+         "Search", "Budgets", "Recurring", "Manage Expenses"],
     )
 
     pages = {
@@ -655,9 +841,10 @@ def main():
         "Add Expense": page_add_expense,
         "Monthly View": page_monthly_view,
         "Analysis": page_analysis,
+        "Search": page_search,
         "Budgets": page_budgets,
         "Recurring": page_recurring,
-        "Delete Expense": page_delete_expense,
+        "Manage Expenses": page_manage_expenses,
     }
     pages[page](username)
 
