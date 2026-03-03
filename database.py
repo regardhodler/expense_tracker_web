@@ -111,6 +111,12 @@ def init_db():
             last_added_date TEXT
         )
     """)
+    # Migration: add start_date column for weekly/biweekly anchor
+    try:
+        conn.execute("ALTER TABLE recurring_expenses ADD COLUMN start_date TEXT")
+    except Exception:
+        pass  # column already exists
+
     _sync_write(conn)
 
 
@@ -203,13 +209,14 @@ def get_monthly_category_totals(year: int, month: int) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 
 def add_recurring_expense(name: str, amount: float, category: str, description: str,
-                          frequency: str, day_of_month: int, added_by: str):
+                          frequency: str, day_of_month: int, added_by: str,
+                          start_date: str | None = None):
     conn = get_connection()
     conn.execute(
         """INSERT INTO recurring_expenses
-           (name, amount, category, description, frequency, day_of_month, added_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (name, round(amount, 2), category, description, frequency, day_of_month, added_by),
+           (name, amount, category, description, frequency, day_of_month, added_by, start_date)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (name, round(amount, 2), category, description, frequency, day_of_month, added_by, start_date),
     )
     _sync_write(conn)
 
@@ -218,12 +225,26 @@ def get_recurring_expenses(active_only: bool = True) -> list[dict]:
     conn = get_connection()
     _sync_read(conn)
     cols = ["id", "name", "amount", "category", "description", "frequency",
-            "day_of_month", "added_by", "active", "created_at", "last_added_date"]
+            "day_of_month", "added_by", "active", "created_at", "last_added_date", "start_date"]
     where = "WHERE active = 1" if active_only else ""
     rows = conn.execute(
         f"SELECT {', '.join(cols)} FROM recurring_expenses {where} ORDER BY name"
     ).fetchall()
     return [dict(zip(cols, r)) for r in rows]
+
+
+def update_recurring_expense(expense_id: int, name: str, amount: float, category: str,
+                             description: str, frequency: str, day_of_month: int,
+                             start_date: str | None = None):
+    conn = get_connection()
+    conn.execute(
+        """UPDATE recurring_expenses
+           SET name = ?, amount = ?, category = ?, description = ?,
+               frequency = ?, day_of_month = ?, start_date = ?
+           WHERE id = ?""",
+        (name, round(amount, 2), category, description, frequency, day_of_month, start_date, expense_id),
+    )
+    _sync_write(conn)
 
 
 def deactivate_recurring_expense(expense_id: int):
@@ -242,7 +263,8 @@ def update_recurring_last_added(expense_id: int, last_date: str):
 
 
 def process_recurring_expenses():
-    """Auto-add due recurring expenses. Uses last_added_date to prevent doubles."""
+    """Auto-add due recurring expenses with correct scheduled dates."""
+    from datetime import timedelta
     today = date.today()
     recurring = get_recurring_expenses(active_only=True)
 
@@ -253,26 +275,49 @@ def process_recurring_expenses():
         else:
             last_dt = None
 
-        should_add = False
+        desc = (f"[Recurring] {rec['name']}"
+                + (f" — {rec['description']}" if rec["description"] else ""))
 
         if rec["frequency"] == "monthly":
-            if last_dt is None or (last_dt.year < today.year or
-                                    (last_dt.year == today.year and last_dt.month < today.month)):
-                if today.day >= rec["day_of_month"]:
-                    should_add = True
+            dom = rec["day_of_month"]
+            # Determine starting month to check
+            if last_dt:
+                # Start checking from the month after last_added
+                check_year, check_month = last_dt.year, last_dt.month
+                check_month += 1
+                if check_month > 12:
+                    check_month = 1
+                    check_year += 1
+            else:
+                # Never added — start from current month
+                check_year, check_month = today.year, today.month
 
-        elif rec["frequency"] == "weekly":
-            if last_dt is None or (today - last_dt).days >= 7:
-                should_add = True
+            # Add expenses for each missed month up to today
+            while date(check_year, check_month, min(dom, 28)) <= today:
+                import calendar as _cal
+                actual_day = min(dom, _cal.monthrange(check_year, check_month)[1])
+                expense_date = date(check_year, check_month, actual_day)
+                if expense_date <= today:
+                    add_expense(expense_date, rec["amount"], rec["category"], desc, rec["added_by"])
+                    update_recurring_last_added(rec["id"], expense_date.isoformat())
+                check_month += 1
+                if check_month > 12:
+                    check_month = 1
+                    check_year += 1
 
-        elif rec["frequency"] == "biweekly":
-            if last_dt is None or (today - last_dt).days >= 14:
-                should_add = True
+        elif rec["frequency"] in ("weekly", "biweekly"):
+            step = 7 if rec["frequency"] == "weekly" else 14
+            # Determine anchor date
+            if last_dt:
+                cursor = last_dt + timedelta(days=step)
+            elif rec.get("start_date"):
+                cursor = datetime.strptime(rec["start_date"], "%Y-%m-%d").date()
+            else:
+                # Fallback: use created_at or today
+                cursor = today
 
-        if should_add:
-            add_expense(
-                today, rec["amount"], rec["category"],
-                f"[Recurring] {rec['name']}" + (f" — {rec['description']}" if rec["description"] else ""),
-                rec["added_by"],
-            )
-            update_recurring_last_added(rec["id"], today.isoformat())
+            # Add expenses for each missed scheduled date up to today
+            while cursor <= today:
+                add_expense(cursor, rec["amount"], rec["category"], desc, rec["added_by"])
+                update_recurring_last_added(rec["id"], cursor.isoformat())
+                cursor += timedelta(days=step)

@@ -12,7 +12,7 @@ from database import (
     init_db, add_expense, delete_expense, get_expenses_between, get_recent_expenses,
     get_budgets, set_budget, get_monthly_category_totals,
     add_recurring_expense, get_recurring_expenses, deactivate_recurring_expense,
-    process_recurring_expenses,
+    update_recurring_expense, process_recurring_expenses,
 )
 from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
@@ -410,7 +410,68 @@ def page_budgets(username: str):
 def page_recurring(username: str):
     st.header("Recurring Payments")
 
-    # Add recurring
+    # --- Edit form (shown when editing) ---
+    editing_id = st.session_state.get("editing_recurring_id")
+    if editing_id is not None:
+        recurring_all = get_recurring_expenses(active_only=True)
+        edit_rec = next((r for r in recurring_all if r["id"] == editing_id), None)
+        if edit_rec:
+            st.subheader(f"Edit: {edit_rec['name']}")
+            with st.form("edit_recurring_form"):
+                e_name = st.text_input("Name", value=edit_rec["name"], max_chars=100)
+                col1, col2 = st.columns(2)
+                with col1:
+                    e_amount = st.number_input("Amount ($)", min_value=0.01, max_value=MAX_AMOUNT,
+                                               step=0.01, format="%.2f", value=float(edit_rec["amount"]))
+                with col2:
+                    cat_idx = CATEGORIES.index(edit_rec["category"]) if edit_rec["category"] in CATEGORIES else 0
+                    e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
+                e_description = st.text_input("Description (optional)", value=edit_rec["description"] or "",
+                                              max_chars=MAX_DESCRIPTION_LENGTH)
+                col3, col4 = st.columns(2)
+                freq_options = ["monthly", "weekly", "biweekly"]
+                freq_idx = freq_options.index(edit_rec["frequency"]) if edit_rec["frequency"] in freq_options else 0
+                with col3:
+                    e_frequency = st.selectbox("Frequency", freq_options, index=freq_idx)
+                with col4:
+                    if e_frequency == "monthly":
+                        e_day_of_month = st.number_input("Day of Month", min_value=1, max_value=28,
+                                                         value=edit_rec["day_of_month"] or 1)
+                        e_start_date = None
+                    else:
+                        existing_start = None
+                        if edit_rec.get("start_date"):
+                            from datetime import datetime as _dt
+                            existing_start = _dt.strptime(edit_rec["start_date"], "%Y-%m-%d").date()
+                        e_start_date_input = st.date_input("Start Date",
+                                                           value=existing_start or date.today())
+                        e_start_date = e_start_date_input.isoformat()
+                        e_day_of_month = 1
+
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    save = st.form_submit_button("Save Changes", use_container_width=True)
+                with col_cancel:
+                    cancel = st.form_submit_button("Cancel", use_container_width=True)
+
+                if save:
+                    if not e_name.strip():
+                        st.error("Name is required.")
+                    else:
+                        update_recurring_expense(
+                            editing_id, e_name.strip(), e_amount, e_category,
+                            e_description.strip(), e_frequency, e_day_of_month, e_start_date,
+                        )
+                        st.session_state.pop("editing_recurring_id", None)
+                        st.session_state.pop("recurring_processed", None)
+                        st.success("Recurring expense updated!")
+                        st.rerun()
+                if cancel:
+                    st.session_state.pop("editing_recurring_id", None)
+                    st.rerun()
+            return  # Don't show the rest while editing
+
+    # --- Add recurring ---
     st.subheader("Add Recurring Expense")
     with st.form("recurring_form", clear_on_submit=True):
         name = st.text_input("Name (e.g. Rent, Netflix)", max_chars=100)
@@ -425,7 +486,13 @@ def page_recurring(username: str):
         with col3:
             frequency = st.selectbox("Frequency", ["monthly", "weekly", "biweekly"])
         with col4:
-            day_of_month = st.number_input("Day of Month (for monthly)", min_value=1, max_value=28, value=1)
+            if frequency == "monthly":
+                day_of_month = st.number_input("Day of Month", min_value=1, max_value=28, value=1)
+                start_date = None
+            else:
+                start_date_input = st.date_input("Start Date", value=date.today())
+                start_date = start_date_input.isoformat()
+                day_of_month = 1
 
         if st.form_submit_button("Add Recurring Expense", use_container_width=True):
             if not name.strip():
@@ -433,14 +500,13 @@ def page_recurring(username: str):
             else:
                 add_recurring_expense(
                     name.strip(), amount, category, description.strip(),
-                    frequency, day_of_month, username,
+                    frequency, day_of_month, username, start_date,
                 )
-                # Re-trigger processing so the new recurring expense gets added immediately
                 st.session_state.pop("recurring_processed", None)
                 st.success(f"Added recurring: {name} — ${amount:,.2f} ({frequency})")
                 st.rerun()
 
-    # List existing
+    # --- List existing ---
     st.subheader("Active Recurring Expenses")
     recurring = get_recurring_expenses(active_only=True)
 
@@ -449,10 +515,15 @@ def page_recurring(username: str):
         return
 
     for rec in recurring:
-        col1, col2, col3 = st.columns([4, 2, 1])
+        col1, col2, col3, col4 = st.columns([4, 2, 1, 1])
         with col1:
+            schedule_info = ""
+            if rec["frequency"] == "monthly":
+                schedule_info = f" (day {rec['day_of_month']})"
+            elif rec.get("start_date"):
+                schedule_info = f" (from {rec['start_date']})"
             st.markdown(
-                f"**{rec['name']}** — ${rec['amount']:,.2f} / {rec['frequency']}  \n"
+                f"**{rec['name']}** — ${rec['amount']:,.2f} / {rec['frequency']}{schedule_info}  \n"
                 f"Category: {rec['category']}"
                 + (f" | {rec['description']}" if rec['description'] else "")
             )
@@ -460,6 +531,10 @@ def page_recurring(username: str):
             last = rec["last_added_date"] or "Never"
             st.caption(f"Last added: {last}")
         with col3:
+            if st.button("Edit", key=f"edit_{rec['id']}"):
+                st.session_state["editing_recurring_id"] = rec["id"]
+                st.rerun()
+        with col4:
             if st.button("Deactivate", key=f"deactivate_{rec['id']}"):
                 deactivate_recurring_expense(rec["id"])
                 st.rerun()
