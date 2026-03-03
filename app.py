@@ -390,13 +390,10 @@ def page_analysis(username: str):
             st.warning(f"{cat} spending is {pct:.1f}% of total (above 40% threshold)")
 
     # Charts
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Pie Chart")
-        st.plotly_chart(pie_chart(summary), use_container_width=True)
-    with col2:
-        st.subheader("Bar Chart")
-        st.plotly_chart(bar_chart(summary), use_container_width=True)
+    st.subheader("Pie Chart")
+    st.plotly_chart(pie_chart(summary), use_container_width=True)
+    st.subheader("Bar Chart")
+    st.plotly_chart(bar_chart(summary), use_container_width=True)
 
     # Monthly trend (if period spans multiple months)
     if (end - start).days > 31:

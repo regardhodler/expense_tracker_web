@@ -24,7 +24,7 @@ def pie_chart(summary_df: pd.DataFrame):
         hole=0.35,
     )
     fig.update_traces(textposition="inside", textinfo="percent+label")
-    fig.update_layout(margin=dict(t=20, b=20, l=20, r=20), height=400)
+    fig.update_layout(margin=dict(t=20, b=20, l=20, r=20), height=500)
     return fig
 
 
@@ -41,7 +41,7 @@ def bar_chart(summary_df: pd.DataFrame):
     fig.update_layout(
         showlegend=False,
         margin=dict(t=30, b=20, l=20, r=20),
-        height=350,
+        height=500,
         yaxis_title="Amount ($)",
     )
     return fig
