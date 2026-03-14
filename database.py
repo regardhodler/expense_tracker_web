@@ -300,6 +300,11 @@ def process_recurring_expenses():
     """Auto-add due recurring expenses with correct scheduled dates."""
     from datetime import timedelta
     today = date.today()
+    # Project 3 months into the future
+    fwd_month = today.month + 3
+    fwd_year = today.year + (fwd_month - 1) // 12
+    fwd_month = (fwd_month - 1) % 12 + 1
+    forward_limit = date(fwd_year, fwd_month, min(today.day, 28))
     recurring = get_recurring_expenses(active_only=True)
 
     for rec in recurring:
@@ -318,11 +323,11 @@ def process_recurring_expenses():
             check_year, check_month = today.year, 1
 
             # Add expenses for each missed month up to today
-            while date(check_year, check_month, min(dom, 28)) <= today:
+            while date(check_year, check_month, min(dom, 28)) <= forward_limit:
                 import calendar as _cal
                 actual_day = min(dom, _cal.monthrange(check_year, check_month)[1])
                 expense_date = date(check_year, check_month, actual_day)
-                if expense_date <= today:
+                if expense_date <= forward_limit:
                     if not _recurring_entry_exists(expense_date, desc, rec["added_by"]):
                         add_expense(expense_date, rec["amount"], rec["category"], desc, rec["added_by"])
                     update_recurring_last_added(rec["id"], expense_date.isoformat())
@@ -340,7 +345,7 @@ def process_recurring_expenses():
                 cursor = date(today.year, 1, 1)
 
             # Add expenses for each missed scheduled date up to today
-            while cursor <= today:
+            while cursor <= forward_limit:
                 if not _recurring_entry_exists(cursor, desc, rec["added_by"]):
                     add_expense(cursor, rec["amount"], rec["category"], desc, rec["added_by"])
                 update_recurring_last_added(rec["id"], cursor.isoformat())
