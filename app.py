@@ -356,10 +356,15 @@ def page_monthly_view(username: str):
                         cat = exp["category"]
                         color = CATEGORY_COLORS.get(cat, "#999")
                         amt = exp["amount"]
+                        desc = exp.get("description", "") or ""
+                        is_recurring = desc.startswith("[Recurring]")
+                        icon = "&#x21BB; " if is_recurring else ""
+                        tooltip = (desc.replace("&", "&amp;").replace("<", "&lt;")
+                                      .replace(">", "&gt;").replace('"', "&quot;"))
                         html += (
-                            f'<div style="color:{color};white-space:nowrap;overflow:hidden;'
-                            f'text-overflow:ellipsis;font-size:0.75em;line-height:1.4">'
-                            f"${amt:,.0f} {cat}</div>"
+                            f'<div title="{tooltip}" style="color:{color};white-space:nowrap;overflow:hidden;'
+                            f'text-overflow:ellipsis;font-size:0.75em;line-height:1.4;cursor:default">'
+                            f'{icon}${amt:,.0f} {cat}</div>'
                         )
                     if len(day_expenses) > 1:
                         day_total = day_expenses["amount"].sum()
