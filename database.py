@@ -286,6 +286,16 @@ def update_recurring_last_added(expense_id: int, last_date: str):
     _sync_write(conn)
 
 
+def _recurring_entry_exists(expense_date: date, description: str, added_by: str) -> bool:
+    """Check if a recurring expense entry already exists for a given date."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT 1 FROM expenses WHERE date = ? AND description = ? AND added_by = ? LIMIT 1",
+        (expense_date.isoformat(), description, added_by),
+    ).fetchone()
+    return row is not None
+
+
 def process_recurring_expenses():
     """Auto-add due recurring expenses with correct scheduled dates."""
     from datetime import timedelta
@@ -304,17 +314,8 @@ def process_recurring_expenses():
 
         if rec["frequency"] == "monthly":
             dom = rec["day_of_month"]
-            # Determine starting month to check
-            if last_dt:
-                # Start checking from the month after last_added
-                check_year, check_month = last_dt.year, last_dt.month
-                check_month += 1
-                if check_month > 12:
-                    check_month = 1
-                    check_year += 1
-            else:
-                # Never added — backfill from January of current year
-                check_year, check_month = today.year, 1
+            # Always backfill from January of current year
+            check_year, check_month = today.year, 1
 
             # Add expenses for each missed month up to today
             while date(check_year, check_month, min(dom, 28)) <= today:
@@ -322,7 +323,8 @@ def process_recurring_expenses():
                 actual_day = min(dom, _cal.monthrange(check_year, check_month)[1])
                 expense_date = date(check_year, check_month, actual_day)
                 if expense_date <= today:
-                    add_expense(expense_date, rec["amount"], rec["category"], desc, rec["added_by"])
+                    if not _recurring_entry_exists(expense_date, desc, rec["added_by"]):
+                        add_expense(expense_date, rec["amount"], rec["category"], desc, rec["added_by"])
                     update_recurring_last_added(rec["id"], expense_date.isoformat())
                 check_month += 1
                 if check_month > 12:
@@ -331,17 +333,15 @@ def process_recurring_expenses():
 
         elif rec["frequency"] in ("weekly", "biweekly"):
             step = 7 if rec["frequency"] == "weekly" else 14
-            # Determine anchor date
-            if last_dt:
-                cursor = last_dt + timedelta(days=step)
-            elif rec.get("start_date"):
-                cursor = datetime.strptime(rec["start_date"], "%Y-%m-%d").date()
+            # Always backfill from January 1 of current year (or start_date if later)
+            if rec.get("start_date"):
+                cursor = max(datetime.strptime(rec["start_date"], "%Y-%m-%d").date(), date(today.year, 1, 1))
             else:
-                # Fallback: backfill from January 1 of current year
                 cursor = date(today.year, 1, 1)
 
             # Add expenses for each missed scheduled date up to today
             while cursor <= today:
-                add_expense(cursor, rec["amount"], rec["category"], desc, rec["added_by"])
+                if not _recurring_entry_exists(cursor, desc, rec["added_by"]):
+                    add_expense(cursor, rec["amount"], rec["category"], desc, rec["added_by"])
                 update_recurring_last_added(rec["id"], cursor.isoformat())
                 cursor += timedelta(days=step)
