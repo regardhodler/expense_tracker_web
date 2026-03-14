@@ -313,8 +313,8 @@ def process_recurring_expenses():
                     check_month = 1
                     check_year += 1
             else:
-                # Never added — start from current month
-                check_year, check_month = today.year, today.month
+                # Never added — backfill from January of current year
+                check_year, check_month = today.year, 1
 
             # Add expenses for each missed month up to today
             while date(check_year, check_month, min(dom, 28)) <= today:
@@ -337,8 +337,8 @@ def process_recurring_expenses():
             elif rec.get("start_date"):
                 cursor = datetime.strptime(rec["start_date"], "%Y-%m-%d").date()
             else:
-                # Fallback: use created_at or today
-                cursor = today
+                # Fallback: backfill from January 1 of current year
+                cursor = date(today.year, 1, 1)
 
             # Add expenses for each missed scheduled date up to today
             while cursor <= today:
