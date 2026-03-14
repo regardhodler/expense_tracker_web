@@ -545,7 +545,7 @@ def page_recurring(username: str):
                     e_frequency = st.selectbox("Frequency", freq_options, index=freq_idx)
                 with col4:
                     if e_frequency == "monthly":
-                        e_day_of_month = st.number_input("Day of Month", min_value=1, max_value=28,
+                        e_day_of_month = st.number_input("Day of Month", min_value=1, max_value=31,
                                                          value=edit_rec["day_of_month"] or 1)
                         e_start_date = None
                     else:
@@ -597,7 +597,7 @@ def page_recurring(username: str):
             frequency = st.selectbox("Frequency", ["monthly", "weekly", "biweekly"])
         with col4:
             if frequency == "monthly":
-                day_of_month = st.number_input("Day of Month", min_value=1, max_value=28, value=1)
+                day_of_month = st.number_input("Day of Month", min_value=1, max_value=31, value=min(date.today().day, 28))
                 start_date = None
             else:
                 start_date_input = st.date_input("Start Date", value=date.today())
