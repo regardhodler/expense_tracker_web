@@ -117,6 +117,10 @@ def init_db():
     except Exception:
         pass  # column already exists
 
+    # Indexes for recurring expense lookups
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_expenses_date_desc_added ON expenses(date, description, added_by)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_recurring_active ON recurring_expenses(active)")
+
     _sync_write(conn)
 
 
@@ -297,15 +301,28 @@ def _recurring_entry_exists(expense_date: date, description: str, added_by: str)
 
 
 def process_recurring_expenses():
-    """Auto-add due recurring expenses with correct scheduled dates."""
+    """Auto-add due recurring expenses with correct scheduled dates.
+
+    Batches all inserts into a single transaction and skips dates that
+    have already been processed (using last_added_date) to avoid
+    redundant DB calls on every app load.
+    """
+    import calendar as _cal
     from datetime import timedelta
+
     today = date.today()
     # Project 3 months into the future
     fwd_month = today.month + 3
     fwd_year = today.year + (fwd_month - 1) // 12
     fwd_month = (fwd_month - 1) % 12 + 1
     forward_limit = date(fwd_year, fwd_month, min(today.day, 28))
+
+    conn = get_connection()
     recurring = get_recurring_expenses(active_only=True)
+
+    # Collect all inserts so we can batch them in one transaction
+    inserts: list[tuple] = []  # (date, amount, category, description, added_by)
+    last_added_updates: dict[int, str] = {}  # rec_id -> last_date_iso
 
     for rec in recurring:
         last_added = rec["last_added_date"]
@@ -317,20 +334,29 @@ def process_recurring_expenses():
         desc = (f"[Recurring] {rec['name']}"
                 + (f" — {rec['description']}" if rec["description"] else ""))
 
+        jan1 = date(today.year, 1, 1)
+
         if rec["frequency"] == "monthly":
             dom = rec["day_of_month"]
-            # Always backfill from January of current year
-            check_year, check_month = today.year, 1
+            # Start from the month after last_added_date if it's >= Jan of current year
+            if last_dt and last_dt >= jan1:
+                start_month = last_dt.month + 1
+                start_year = last_dt.year
+                if start_month > 12:
+                    start_month = 1
+                    start_year += 1
+            else:
+                start_year, start_month = today.year, 1
 
-            # Add expenses for each missed month up to today
+            check_year, check_month = start_year, start_month
             while date(check_year, check_month, min(dom, 28)) <= forward_limit:
-                import calendar as _cal
                 actual_day = min(dom, _cal.monthrange(check_year, check_month)[1])
                 expense_date = date(check_year, check_month, actual_day)
                 if expense_date <= forward_limit:
                     if not _recurring_entry_exists(expense_date, desc, rec["added_by"]):
-                        add_expense(expense_date, rec["amount"], rec["category"], desc, rec["added_by"])
-                    update_recurring_last_added(rec["id"], expense_date.isoformat())
+                        inserts.append((expense_date.isoformat(), rec["amount"],
+                                        rec["category"], desc, rec["added_by"]))
+                    last_added_updates[rec["id"]] = expense_date.isoformat()
                 check_month += 1
                 if check_month > 12:
                     check_month = 1
@@ -338,15 +364,33 @@ def process_recurring_expenses():
 
         elif rec["frequency"] in ("weekly", "biweekly"):
             step = 7 if rec["frequency"] == "weekly" else 14
-            # Always backfill from January 1 of current year (or start_date if later)
             if rec.get("start_date"):
-                cursor = max(datetime.strptime(rec["start_date"], "%Y-%m-%d").date(), date(today.year, 1, 1))
+                cursor = max(datetime.strptime(rec["start_date"], "%Y-%m-%d").date(), jan1)
             else:
-                cursor = date(today.year, 1, 1)
+                cursor = jan1
 
-            # Add expenses for each missed scheduled date up to today
+            # Skip past already-processed dates
+            if last_dt and last_dt >= jan1:
+                while cursor <= last_dt:
+                    cursor += timedelta(days=step)
+
             while cursor <= forward_limit:
                 if not _recurring_entry_exists(cursor, desc, rec["added_by"]):
-                    add_expense(cursor, rec["amount"], rec["category"], desc, rec["added_by"])
-                update_recurring_last_added(rec["id"], cursor.isoformat())
+                    inserts.append((cursor.isoformat(), rec["amount"],
+                                    rec["category"], desc, rec["added_by"]))
+                last_added_updates[rec["id"]] = cursor.isoformat()
                 cursor += timedelta(days=step)
+
+    # Batch write: all inserts + last_added updates in one transaction
+    if inserts or last_added_updates:
+        conn.executemany(
+            "INSERT INTO expenses (date, amount, category, description, added_by) "
+            "VALUES (?, ?, ?, ?, ?)",
+            inserts,
+        )
+        for rec_id, last_date in last_added_updates.items():
+            conn.execute(
+                "UPDATE recurring_expenses SET last_added_date = ? WHERE id = ?",
+                (last_date, rec_id),
+            )
+        _sync_write(conn)

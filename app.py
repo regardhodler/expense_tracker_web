@@ -24,6 +24,26 @@ from visualization import pie_chart, bar_chart, monthly_trend_chart, comparison_
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
 
 # ---------------------------------------------------------------------------
+# Cached dashboard queries (short TTL to avoid stale data on reruns)
+# ---------------------------------------------------------------------------
+
+@st.cache_data(ttl=60)
+def _cached_expenses_between(start_iso: str, end_iso: str) -> list[dict]:
+    return get_expenses_between(date.fromisoformat(start_iso), date.fromisoformat(end_iso))
+
+@st.cache_data(ttl=60)
+def _cached_recent_expenses(limit: int) -> list[dict]:
+    return get_recent_expenses(limit)
+
+@st.cache_data(ttl=60)
+def _cached_budgets() -> list[dict]:
+    return get_budgets()
+
+@st.cache_data(ttl=60)
+def _cached_monthly_category_totals(year: int, month: int) -> dict:
+    return get_monthly_category_totals(year, month)
+
+# ---------------------------------------------------------------------------
 # PWA support
 # ---------------------------------------------------------------------------
 
@@ -157,8 +177,8 @@ def page_dashboard(username: str):
     # Quick stats
     month_start = today.replace(day=1)
     year_start = date(today.year, 1, 1)
-    month_rows = get_expenses_between(month_start, today)
-    ytd_rows = get_expenses_between(year_start, today)
+    month_rows = _cached_expenses_between(month_start.isoformat(), today.isoformat())
+    ytd_rows = _cached_expenses_between(year_start.isoformat(), today.isoformat())
     month_total = sum(r["amount"] for r in month_rows)
     ytd_total = sum(r["amount"] for r in ytd_rows)
 
@@ -170,7 +190,7 @@ def page_dashboard(username: str):
         prev_month_start = date(today.year, today.month - 1, 1)
         prev_last_day = calendar.monthrange(today.year, today.month - 1)[1]
         prev_month_end = date(today.year, today.month - 1, prev_last_day)
-    prev_month_rows = get_expenses_between(prev_month_start, prev_month_end)
+    prev_month_rows = _cached_expenses_between(prev_month_start.isoformat(), prev_month_end.isoformat())
     prev_month_total = sum(r["amount"] for r in prev_month_rows)
 
     month_delta = month_total - prev_month_total if prev_month_total > 0 else None
@@ -214,9 +234,9 @@ def page_dashboard(username: str):
                 st.info("No data to compare.")
 
     # Over-budget warnings
-    budgets = get_budgets()
+    budgets = _cached_budgets()
     if budgets:
-        category_totals = get_monthly_category_totals(today.year, today.month)
+        category_totals = _cached_monthly_category_totals(today.year, today.month)
         for b in budgets:
             spent = category_totals.get(b["category"], 0)
             if spent > b["monthly_limit"]:
@@ -229,7 +249,7 @@ def page_dashboard(username: str):
 
     # Recent expenses
     st.subheader("Recent Expenses")
-    recent = get_recent_expenses(10)
+    recent = _cached_recent_expenses(10)
     if recent:
         df = pd.DataFrame(recent)
         df_display = df[["date", "amount", "category", "description", "added_by"]].copy()
