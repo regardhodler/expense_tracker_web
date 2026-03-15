@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from analysis import get_period_dates, category_summary, daily_totals_for_month, rows_to_dataframe
+from analysis import get_period_dates, category_summary, daily_totals_for_month, rows_to_dataframe, love_points, DISPLAY_NAMES
 
 
 # ---------------------------------------------------------------------------
@@ -118,3 +118,120 @@ class TestDailyTotals:
         result = daily_totals_for_month(df, 2025, 3)
         assert 1 in result
         assert len(result) == 1
+
+
+# ---------------------------------------------------------------------------
+# love_points
+# ---------------------------------------------------------------------------
+
+class TestLovePoints:
+    """Tests for the input-based love points system."""
+
+    def _make_rows(self, husband_manual=0, wife_manual=0, husband_recurring=0, wife_recurring=0):
+        """Helper to build a DataFrame of expense rows."""
+        rows = []
+        for i in range(husband_manual):
+            rows.append({"id": len(rows), "date": "2026-03-05", "amount": 10.0,
+                         "category": "Food", "description": f"manual {i}", "added_by": "husband"})
+        for i in range(wife_manual):
+            rows.append({"id": len(rows), "date": "2026-03-05", "amount": 10.0,
+                         "category": "Food", "description": f"manual {i}", "added_by": "wife"})
+        for i in range(husband_recurring):
+            rows.append({"id": len(rows), "date": "2026-03-01", "amount": 50.0,
+                         "category": "Housing", "description": f"[Recurring] rent {i}", "added_by": "husband"})
+        for i in range(wife_recurring):
+            rows.append({"id": len(rows), "date": "2026-03-01", "amount": 50.0,
+                         "category": "Housing", "description": f"[Recurring] sub {i}", "added_by": "wife"})
+        return rows_to_dataframe(rows)
+
+    def test_empty_df(self):
+        df = rows_to_dataframe([])
+        result = love_points(df)
+        assert result["combined_points"] == 0
+        assert result["tier"] == "warming_up"
+        assert result["emoji"] == "❄️"
+        assert isinstance(result["message"], str)
+        assert result["points"]["husband"] == 0
+        assert result["points"]["wife"] == 0
+
+    def test_manual_entries_count_as_1_point(self):
+        df = self._make_rows(husband_manual=3, wife_manual=2)
+        result = love_points(df)
+        assert result["points"]["husband"] == 3.0
+        assert result["points"]["wife"] == 2.0
+        assert result["combined_points"] == 5.0
+
+    def test_recurring_entries_count_as_quarter_point(self):
+        df = self._make_rows(husband_recurring=4)
+        result = love_points(df)
+        assert result["points"]["husband"] == 1.0  # 4 * 0.25
+        assert result["combined_points"] == 1.0
+
+    def test_mixed_manual_and_recurring(self):
+        df = self._make_rows(husband_manual=2, wife_manual=1, husband_recurring=4, wife_recurring=2)
+        result = love_points(df)
+        # husband: 2 + (4*0.25) = 3.0, wife: 1 + (2*0.25) = 1.5
+        assert result["points"]["husband"] == 3.0
+        assert result["points"]["wife"] == 1.5
+        assert result["combined_points"] == 4.5
+
+    def test_tier_warming_up(self):
+        df = self._make_rows(husband_manual=1)
+        result = love_points(df)
+        assert result["tier"] == "warming_up"
+        assert result["emoji"] == "❄️"
+
+    def test_tier_sweet(self):
+        df = self._make_rows(husband_manual=2, wife_manual=1)
+        result = love_points(df)
+        assert result["tier"] == "sweet"
+        assert result["emoji"] == "🥰"
+
+    def test_tier_crushing(self):
+        df = self._make_rows(husband_manual=3, wife_manual=2)
+        result = love_points(df)
+        assert result["tier"] == "crushing"
+        assert result["emoji"] == "😍"
+
+    def test_tier_madly(self):
+        df = self._make_rows(husband_manual=4, wife_manual=3)
+        result = love_points(df)
+        assert result["tier"] == "madly"
+        assert result["emoji"] == "🔥"
+
+    def test_tier_soulmates(self):
+        df = self._make_rows(husband_manual=5, wife_manual=5)
+        result = love_points(df)
+        assert result["tier"] == "soulmates"
+        assert result["emoji"] == "💪"
+
+    def test_tier_soulmates_at_11(self):
+        df = self._make_rows(husband_manual=6, wife_manual=5)
+        result = love_points(df)
+        assert result["tier"] == "soulmates"
+
+    def test_tier_easter_egg(self):
+        df = self._make_rows(husband_manual=7, wife_manual=5)
+        result = love_points(df)
+        assert result["tier"] == "easter_egg"
+        assert result["emoji"] == "🌟"
+
+    def test_message_is_deterministic_for_same_month(self):
+        df = self._make_rows(husband_manual=3, wife_manual=2)
+        result1 = love_points(df, year=2026, month=3)
+        result2 = love_points(df, year=2026, month=3)
+        assert result1["message"] == result2["message"]
+
+    def test_message_changes_across_months(self):
+        df = self._make_rows(husband_manual=3, wife_manual=2)
+        result_mar = love_points(df, year=2026, month=3)
+        result_apr = love_points(df, year=2026, month=4)
+        assert isinstance(result_mar["message"], str)
+        assert isinstance(result_apr["message"], str)
+
+    def test_only_one_user(self):
+        df = self._make_rows(husband_manual=5)
+        result = love_points(df)
+        assert result["points"]["husband"] == 5.0
+        assert result["points"]["wife"] == 0
+        assert result["combined_points"] == 5.0

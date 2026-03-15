@@ -176,6 +176,116 @@ def love_comparison(df: pd.DataFrame) -> tuple[pd.DataFrame, str, str, float, st
     return by_person, lover_name, provider_name, gap_pct, love_level, message
 
 
+# ---------------------------------------------------------------------------
+# Love Points System (input-based)
+# ---------------------------------------------------------------------------
+
+LOVE_TIERS = [
+    {"name": "warming_up", "emoji": "❄️", "label": "Warming Up", "min": 0},
+    {"name": "sweet", "emoji": "🥰", "label": "Sweet", "min": 3},
+    {"name": "crushing", "emoji": "😍", "label": "Crushing", "min": 5},
+    {"name": "madly", "emoji": "🔥", "label": "Madly In Love", "min": 7},
+    {"name": "soulmates", "emoji": "💪", "label": "Soulmates", "min": 10},
+    {"name": "easter_egg", "emoji": "🌟", "label": "???", "min": 12},
+]
+
+LOVE_MESSAGES = {
+    "warming_up": [
+        "The love account is empty — time to start logging!",
+        "Even the longest love story starts with one expense",
+        "Your wallet is shy this month... give it some love!",
+        "Two hearts, zero logs — let's change that!",
+    ],
+    "sweet": [
+        "Love is in the air... and in the spreadsheet",
+        "You two are warming up nicely",
+        "A few entries in, and already adorable",
+        "Slowly but sweetly, love is being tracked",
+    ],
+    "crushing": [
+        "Jude & Wincyl are on a roll!",
+        "This month's love story is getting interesting",
+        "Cupid called — he's taking notes",
+        "You two are giving main character energy",
+    ],
+    "madly": [
+        "You two are basically a rom-com",
+        "Netflix wants the rights to your love story",
+        "The expense tracker can barely handle this much love",
+        "Your love is louder than your spending",
+    ],
+    "soulmates": [
+        "Perfectly synced — power couple confirmed",
+        "10 points! You've unlocked true love",
+        "Soulmate status: ACHIEVED",
+        "You two are the reason love songs exist",
+    ],
+    "easter_egg": [
+        "You broke the love meter! Scientists are baffled.",
+        "ERROR 💕: Too much love detected. System overload.",
+        "Achievement unlocked: LOVE BEYOND MEASURE",
+        "The tracker wasn't built for this level of romance. Impressive.",
+        "You've gone where no couple has gone before. Respect.",
+    ],
+}
+
+
+def love_points(df: pd.DataFrame, year: int | None = None, month: int | None = None) -> dict:
+    """Calculate love points from expense entries for the current month.
+
+    Returns dict with: combined_points, points (per user), tier, emoji, label,
+    message, next_tier_threshold.
+    """
+    today = date.today()
+    if year is None:
+        year = today.year
+    if month is None:
+        month = today.month
+
+    # Calculate points per user: 1 pt manual, 0.25 pt recurring
+    user_points = {"husband": 0.0, "wife": 0.0}
+
+    if not df.empty:
+        for _, row in df.iterrows():
+            user = row.get("added_by", "")
+            if user not in user_points:
+                continue
+            desc = row.get("description", "") or ""
+            if desc.startswith("[Recurring]"):
+                user_points[user] += 0.25
+            else:
+                user_points[user] += 1.0
+
+    combined = sum(user_points.values())
+
+    # Determine tier (walk through tiers to find highest match)
+    current_tier = LOVE_TIERS[0]
+    for tier in LOVE_TIERS:
+        if combined >= tier["min"]:
+            current_tier = tier
+
+    # Find next tier threshold
+    tier_idx = LOVE_TIERS.index(current_tier)
+    if tier_idx < len(LOVE_TIERS) - 1:
+        next_threshold = LOVE_TIERS[tier_idx + 1]["min"]
+    else:
+        next_threshold = None  # Already at max
+
+    # Select message deterministically
+    messages = LOVE_MESSAGES[current_tier["name"]]
+    msg_idx = (year * 12 + month) % len(messages)
+    message = messages[msg_idx]
+
+    return {
+        "combined_points": combined,
+        "points": user_points,
+        "tier": current_tier["name"],
+        "emoji": current_tier["emoji"],
+        "label": current_tier["label"],
+        "message": message,
+        "next_tier_threshold": next_threshold,
+    }
+
 
 CANADIAN_MONTHLY_AVERAGES = {
     "Housing": 2100.00,
