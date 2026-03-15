@@ -176,30 +176,6 @@ def love_comparison(df: pd.DataFrame) -> tuple[pd.DataFrame, str, str, float, st
     return by_person, lover_name, provider_name, gap_pct, love_level, message
 
 
-def romance_recommendation(lover_name: str, provider_name: str, gap_pct: float,
-                           df: pd.DataFrame) -> list[str]:
-    """Return fun recommendations based on spending gap and patterns."""
-    recs = []
-
-    if gap_pct > 30:
-        recs.append(f"🍽️ Time for {lover_name} to surprise {provider_name} with a date night!")
-
-    if not df.empty:
-        top_cat = df.groupby("category")["amount"].sum().idxmax()
-        if top_cat == "Food":
-            recs.append("👩‍🍳 You two love eating out — try cooking a romantic dinner together!")
-
-        ent_total = df[df["category"] == "Entertainment"]["amount"].sum()
-        grand = df["amount"].sum()
-        if grand > 0 and (ent_total / grand) < 0.05:
-            recs.append("🎬 Movie night is overdue — grab some popcorn and cuddle up!")
-
-    if gap_pct < 5:
-        recs.append("⚖️ You're both equally invested — that's relationship goals!")
-
-    recs.append("💕 Remember: love isn't measured in dollars, but it sure helps track it!")
-    return recs
-
 
 CANADIAN_MONTHLY_AVERAGES = {
     "Housing": 2100.00,

@@ -19,11 +19,11 @@ from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
     get_period_dates, category_summary, daily_totals_for_month,
     expenses_for_day, spending_projections, month_comparison,
-    love_comparison, romance_recommendation, canadian_comparison,
+    love_comparison, canadian_comparison,
 )
 from visualization import (
     pie_chart, bar_chart, monthly_trend_chart, comparison_bar_chart,
-    love_comparison_chart, canadian_comparison_chart,
+    canadian_comparison_chart,
 )
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
 
@@ -274,14 +274,6 @@ def page_dashboard(username: str):
                 row = comp_df.iloc[i]
                 display = DISPLAY_NAMES.get(row["Person"], row["Person"])
                 col.metric(display, f"${row['Total']:,.2f}", f"{row['% Share']}% of total")
-
-        st.plotly_chart(love_comparison_chart(comp_df), use_container_width=True)
-
-        recs = romance_recommendation(lover, provider, gap_pct, df_month)
-        if recs:
-            with st.expander("💡 Love Recommendations"):
-                for rec in recs:
-                    st.markdown(f"- {rec}")
 
     # Month-over-Month comparison
     if month_rows or prev_month_rows:
