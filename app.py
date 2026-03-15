@@ -553,8 +553,9 @@ def page_recurring(username: str):
         if edit_rec:
             st.subheader(f"Edit: {edit_rec['name']}")
             freq_options = ["monthly", "weekly", "biweekly"]
-            freq_idx = freq_options.index(edit_rec["frequency"]) if edit_rec["frequency"] in freq_options else 0
-            e_frequency = st.selectbox("Frequency", freq_options, index=freq_idx, key="edit_freq")
+            if "edit_freq" not in st.session_state:
+                st.session_state["edit_freq"] = edit_rec["frequency"] if edit_rec["frequency"] in freq_options else "monthly"
+            e_frequency = st.selectbox("Frequency", freq_options, key="edit_freq")
             with st.form("edit_recurring_form"):
                 e_name = st.text_input("Name", value=edit_rec["name"], max_chars=100)
                 col1, col2 = st.columns(2)
@@ -595,11 +596,13 @@ def page_recurring(username: str):
                             e_description.strip(), e_frequency, e_day_of_month, e_start_date,
                         )
                         st.session_state.pop("editing_recurring_id", None)
+                        st.session_state.pop("edit_freq", None)
                         st.session_state.pop("recurring_processed", None)
                         st.success("Recurring expense updated!")
                         st.rerun()
                 if cancel:
                     st.session_state.pop("editing_recurring_id", None)
+                    st.session_state.pop("edit_freq", None)
                     st.rerun()
             return  # Don't show the rest while editing
 
