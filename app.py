@@ -116,14 +116,32 @@ def inject_romantic_css():
 def _monthsary_banner():
     """Show a celebratory banner on/around the 16th of each month."""
     today = date.today()
+
+    MONTHSARY_MESSAGES = [
+        "Happy Monthsary! Another beautiful chapter in the Jude & Wincyl story 💕",
+        "Happy Monthsary! Still falling for each other, one expense at a time 💕",
+        "Happy Monthsary! Love isn't counted in dollars — but we track those too 💕",
+        "Happy Monthsary! Another month of being each other's favorite person 💕",
+        "Happy Monthsary! The best things in life aren't expenses... but we log them anyway 💕",
+    ]
+    LOVE_FACTS = [
+        "Fun fact: Couples who budget together stay together!",
+        "Did you know? Shared financial goals strengthen relationships.",
+        "Love tip: It's not about who spends more — it's about spending time together.",
+        "Fact: The average couple talks about money 3x a week. You two track it!",
+        "Remember: The best investment is in each other.",
+    ]
+
     if today.day == 16:
         st.balloons()
+        msg_idx = (today.year * 12 + today.month) % len(MONTHSARY_MESSAGES)
+        fact_idx = (today.year * 12 + today.month + 3) % len(LOVE_FACTS)
         st.markdown(
-            '<div style="text-align:center;padding:20px;background:linear-gradient(135deg,#ff6b9d,#c44dff);'
-            'border-radius:12px;margin:10px 0">'
-            '<h2 style="color:white;margin:0">💕 Happy Monthsary! 💕</h2>'
-            '<p style="color:#ffe0f0;margin:5px 0 0">Jude & Wincyl — another beautiful month together</p>'
-            '</div>', unsafe_allow_html=True)
+            f'<div style="text-align:center;padding:20px;background:linear-gradient(135deg,#ff6b9d,#c44dff);'
+            f'border-radius:12px;margin:10px 0">'
+            f'<h2 style="color:white;margin:0">💕 {MONTHSARY_MESSAGES[msg_idx]}</h2>'
+            f'<p style="color:#ffe0f0;margin:8px 0 0;font-style:italic">{LOVE_FACTS[fact_idx]}</p>'
+            f'</div>', unsafe_allow_html=True)
     elif today.day in (15, 17):
         st.info("💕 Monthsary is on the 16th! Love you always.")
 
