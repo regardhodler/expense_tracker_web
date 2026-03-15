@@ -267,14 +267,6 @@ def page_dashboard(username: str):
             unsafe_allow_html=True,
         )
 
-        if not comp_df.empty and len(comp_df) >= 2:
-            from analysis import DISPLAY_NAMES
-            c1, c2 = st.columns(2)
-            for i, col in enumerate([c1, c2]):
-                row = comp_df.iloc[i]
-                display = DISPLAY_NAMES.get(row["Person"], row["Person"])
-                col.metric(display, f"${row['Total']:,.2f}", f"{row['% Share']}% of total")
-
     # Month-over-Month comparison
     if month_rows or prev_month_rows:
         with st.expander("Month-over-Month Details"):
