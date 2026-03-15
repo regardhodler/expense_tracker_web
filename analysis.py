@@ -131,50 +131,6 @@ def expenses_for_day(df: pd.DataFrame, target_date: date) -> pd.DataFrame:
 DISPLAY_NAMES = {"husband": "Jude", "wife": "Wincyl"}
 
 
-def love_comparison(df: pd.DataFrame) -> tuple[pd.DataFrame, str, str, float, str, str]:
-    """Compare total spending by person with romance tiers.
-
-    The higher spender is the 'provider' (spoiling the other).
-    The lower spender is the 'lover' (being spoiled).
-
-    Returns (comp_df, lover_name, provider_name, gap_pct, love_level, message).
-    """
-    empty_df = pd.DataFrame(columns=["Person", "Total", "% Share"])
-    if df.empty:
-        return empty_df, "", "", 0.0, "soulmates", "No data yet — start spending together!"
-
-    by_person = df.groupby("added_by")["amount"].sum().reset_index()
-    by_person.columns = ["Person", "Total"]
-    grand = by_person["Total"].sum()
-    by_person["% Share"] = (by_person["Total"] / grand * 100).round(1) if grand > 0 else 0.0
-    by_person = by_person.sort_values("Total", ascending=False)
-
-    if len(by_person) < 2 or grand == 0:
-        name = DISPLAY_NAMES.get(by_person.iloc[0]["Person"], by_person.iloc[0]["Person"])
-        return by_person, name, name, 0.0, "soulmates", "Only one person spending — teamwork makes the dream work!"
-
-    provider_user = by_person.iloc[0]["Person"]
-    lover_user = by_person.iloc[1]["Person"]
-    provider_name = DISPLAY_NAMES.get(provider_user, provider_user)
-    lover_name = DISPLAY_NAMES.get(lover_user, lover_user)
-
-    gap_pct = abs(by_person.iloc[0]["Total"] - by_person.iloc[1]["Total"]) / grand * 100
-
-    if gap_pct < 5:
-        love_level = "soulmates"
-        message = "Perfectly balanced, like a true power couple 💪"
-    elif gap_pct < 20:
-        love_level = "sweet"
-        message = f"{lover_name} is feeling extra loved by {provider_name} 🥰"
-    elif gap_pct < 50:
-        love_level = "crushing"
-        message = f"{lover_name} is head over heels for {provider_name} 😍"
-    else:
-        love_level = "madly"
-        message = f"{lover_name} is MADLY in love with {provider_name} 🔥"
-
-    return by_person, lover_name, provider_name, gap_pct, love_level, message
-
 
 # ---------------------------------------------------------------------------
 # Love Points System (input-based)

@@ -93,27 +93,6 @@ def monthly_trend_chart(df: pd.DataFrame):
     return fig
 
 
-def love_comparison_chart(comp_df: pd.DataFrame):
-    """Horizontal bar chart showing spending contribution by person."""
-    fig = px.bar(
-        comp_df,
-        x="Total",
-        y="Person",
-        orientation="h",
-        color="Person",
-        color_discrete_sequence=["#ff6b9d", "#c44dff"],
-        text=comp_df["Total"].map("${:,.2f}".format),
-    )
-    fig.update_traces(textposition="outside")
-    fig.update_layout(
-        showlegend=False,
-        margin=dict(t=20, b=20, l=20, r=20),
-        height=300,
-        xaxis_title="Total Spent ($)",
-        yaxis_title="",
-    )
-    return fig
-
 
 def canadian_comparison_chart(comp_df: pd.DataFrame):
     """Grouped bar chart comparing user spending vs Canadian averages."""
