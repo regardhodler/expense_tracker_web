@@ -19,8 +19,12 @@ from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
     get_period_dates, category_summary, daily_totals_for_month,
     expenses_for_day, spending_projections, month_comparison,
+    love_comparison, romance_recommendation, canadian_comparison,
 )
-from visualization import pie_chart, bar_chart, monthly_trend_chart, comparison_bar_chart
+from visualization import (
+    pie_chart, bar_chart, monthly_trend_chart, comparison_bar_chart,
+    love_comparison_chart, canadian_comparison_chart,
+)
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
 
 # ---------------------------------------------------------------------------
@@ -94,6 +98,36 @@ def inject_mobile_css():
     """, unsafe_allow_html=True)
 
 
+def inject_romantic_css():
+    """Subtle pink accent styling for the love dashboard."""
+    st.markdown("""
+        <style>
+        [data-testid="stMetric"] {
+            border-left: 4px solid #ff6b9d;
+            padding-left: 12px;
+        }
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h1 {
+            color: #ff6b9d;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+
+def _monthsary_banner():
+    """Show a celebratory banner on/around the 16th of each month."""
+    today = date.today()
+    if today.day == 16:
+        st.balloons()
+        st.markdown(
+            '<div style="text-align:center;padding:20px;background:linear-gradient(135deg,#ff6b9d,#c44dff);'
+            'border-radius:12px;margin:10px 0">'
+            '<h2 style="color:white;margin:0">💕 Happy Monthsary! 💕</h2>'
+            '<p style="color:#ffe0f0;margin:5px 0 0">Jude & Wincyl — another beautiful month together</p>'
+            '</div>', unsafe_allow_html=True)
+    elif today.day in (15, 17):
+        st.info("💕 Monthsary is on the 16th! Love you always.")
+
+
 # ---------------------------------------------------------------------------
 # Config & setup
 # ---------------------------------------------------------------------------
@@ -106,7 +140,7 @@ def _get_secret(key: str, default: str = "") -> str:
         import os
         return os.environ.get(key, default)
 
-st.set_page_config(page_title="Expense Tracker", page_icon="$", layout="wide")
+st.set_page_config(page_title="Jude & Wincyl's Expense Tracker", page_icon="💕", layout="wide")
 
 
 @st.cache_data(ttl=3600)
@@ -121,12 +155,12 @@ def _build_auth_config() -> dict:
             "usernames": {
                 "husband": {
                     "email": "husband@home.local",
-                    "name": "Husband",
+                    "name": "Jude",
                     "password": hashed[0],
                 },
                 "wife": {
                     "email": "wife@home.local",
-                    "name": "Wife",
+                    "name": "Wincyl",
                     "password": hashed[1],
                 },
             }
@@ -171,7 +205,8 @@ def _df_to_csv_bytes(df: pd.DataFrame) -> bytes:
 # ---------------------------------------------------------------------------
 
 def page_dashboard(username: str):
-    st.header("Dashboard")
+    st.header("💕 Jude & Wincyl's Love Dashboard")
+    _monthsary_banner()
     today = date.today()
 
     # Quick stats
@@ -213,6 +248,40 @@ def page_dashboard(username: str):
             f"Averaging ${proj['daily_avg']:,.2f}/day, on track for "
             f"${proj['projected_total']:,.2f} this month."
         )
+
+    # Romance Status
+    if month_rows:
+        st.subheader("💕 Romance Status")
+        df_month = rows_to_dataframe(month_rows)
+        comp_df, lover, provider, gap_pct, love_level, love_msg = love_comparison(df_month)
+
+        level_emoji = {"soulmates": "💪", "sweet": "🥰", "crushing": "😍", "madly": "🔥"}
+        emoji = level_emoji.get(love_level, "💕")
+
+        st.markdown(
+            f'<div style="text-align:center;padding:24px 20px;'
+            f'background:linear-gradient(135deg,#ff6b9d,#c44dff);'
+            f'border-radius:14px;margin:10px 0">'
+            f'<h2 style="color:white;margin:0;font-size:1.8em">{emoji} {love_msg}</h2>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        if not comp_df.empty and len(comp_df) >= 2:
+            from analysis import DISPLAY_NAMES
+            c1, c2 = st.columns(2)
+            for i, col in enumerate([c1, c2]):
+                row = comp_df.iloc[i]
+                display = DISPLAY_NAMES.get(row["Person"], row["Person"])
+                col.metric(display, f"${row['Total']:,.2f}", f"{row['% Share']}% of total")
+
+        st.plotly_chart(love_comparison_chart(comp_df), use_container_width=True)
+
+        recs = romance_recommendation(lover, provider, gap_pct, df_month)
+        if recs:
+            with st.expander("💡 Love Recommendations"):
+                for rec in recs:
+                    st.markdown(f"- {rec}")
 
     # Month-over-Month comparison
     if month_rows or prev_month_rows:
@@ -399,6 +468,29 @@ def page_monthly_view(username: str):
     html += "</table>"
     st.markdown(html, unsafe_allow_html=True)
 
+    # Day details selector
+    st.subheader("📋 Day Details")
+    default_day = today.day if year == today.year and month == today.month else 1
+    selected_day = st.number_input("Select day", min_value=1, max_value=last_day,
+                                    value=default_day, key="day_detail_select")
+    selected_date = date(year, month, selected_day)
+    day_exps = expenses_for_day(df, selected_date)
+
+    if day_exps.empty:
+        st.info(f"No expenses on {selected_date.strftime('%B %d, %Y')}.")
+    else:
+        day_total = day_exps["amount"].sum()
+        st.metric(f"Total for {selected_date.strftime('%B %d')}", f"${day_total:,.2f}")
+        for _, exp in day_exps.iterrows():
+            with st.container(border=True):
+                c1, c2 = st.columns([3, 1])
+                with c1:
+                    st.markdown(f"**{exp['category']}**")
+                    st.caption(exp.get("description", "") or "No description")
+                    st.caption(f"Added by: {exp['added_by']}")
+                with c2:
+                    st.markdown(f"**${exp['amount']:,.2f}**")
+
     # Category breakdown
     st.subheader("Category Breakdown")
     if df.empty:
@@ -499,6 +591,13 @@ def page_analysis(username: str):
         trend = monthly_trend_chart(df)
         if trend:
             st.plotly_chart(trend, use_container_width=True)
+
+    # Canadian Average comparison
+    st.subheader("🇨🇦 vs Canadian Averages")
+    st.caption("Your monthly rate vs Canadian 2-person household averages (2023)")
+    cdn = canadian_comparison(df, start, end)
+    st.plotly_chart(canadian_comparison_chart(cdn), use_container_width=True)
+    st.dataframe(cdn, use_container_width=True, hide_index=True)
 
 
 def page_budgets(username: str):
@@ -835,6 +934,7 @@ def main():
     init_db()
     inject_pwa()
     inject_mobile_css()
+    inject_romantic_css()
     authenticator, name, auth_status, username = authenticate()
 
     if auth_status is False:
@@ -850,7 +950,10 @@ def main():
         st.session_state["recurring_processed"] = True
 
     # Logged in
-    st.sidebar.title(f"Hi, {name}!")
+    st.sidebar.title(f"💕 Hi, {name}!")
+    st.sidebar.caption("Jude loves Wincyl forever 💕")
+    if date.today().day == 16:
+        st.sidebar.markdown("💕 **Happy Monthsary!** 💕")
     authenticator.logout("Logout", "sidebar")
 
     page = st.sidebar.radio(

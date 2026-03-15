@@ -91,3 +91,54 @@ def monthly_trend_chart(df: pd.DataFrame):
         height=500,
     )
     return fig
+
+
+def love_comparison_chart(comp_df: pd.DataFrame):
+    """Horizontal bar chart showing spending contribution by person."""
+    fig = px.bar(
+        comp_df,
+        x="Total",
+        y="Person",
+        orientation="h",
+        color="Person",
+        color_discrete_sequence=["#ff6b9d", "#c44dff"],
+        text=comp_df["Total"].map("${:,.2f}".format),
+    )
+    fig.update_traces(textposition="outside")
+    fig.update_layout(
+        showlegend=False,
+        margin=dict(t=20, b=20, l=20, r=20),
+        height=300,
+        xaxis_title="Total Spent ($)",
+        yaxis_title="",
+    )
+    return fig
+
+
+def canadian_comparison_chart(comp_df: pd.DataFrame):
+    """Grouped bar chart comparing user spending vs Canadian averages."""
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        name="Your Monthly Avg",
+        x=comp_df["Category"],
+        y=comp_df["Your Monthly Avg"],
+        marker_color="#ff6b9d",
+        text=comp_df["Your Monthly Avg"].map("${:,.0f}".format),
+        textposition="outside",
+    ))
+    fig.add_trace(go.Bar(
+        name="Canadian Avg",
+        x=comp_df["Category"],
+        y=comp_df["Canadian Avg"],
+        marker_color="#6c8ebf",
+        text=comp_df["Canadian Avg"].map("${:,.0f}".format),
+        textposition="outside",
+    ))
+    fig.update_layout(
+        barmode="group",
+        height=500,
+        margin=dict(t=30, b=20, l=20, r=20),
+        yaxis_title="Monthly Amount ($)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    return fig
