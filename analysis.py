@@ -139,10 +139,14 @@ DISPLAY_NAMES = {"husband": "Jude", "wife": "Wincyl"}
 LOVE_TIERS = [
     {"name": "warming_up", "emoji": "❄️", "label": "Warming Up", "min": 0},
     {"name": "sweet", "emoji": "🥰", "label": "Sweet", "min": 3},
-    {"name": "crushing", "emoji": "😍", "label": "Crushing", "min": 5},
-    {"name": "madly", "emoji": "🔥", "label": "Madly In Love", "min": 7},
-    {"name": "soulmates", "emoji": "💪", "label": "Soulmates", "min": 10},
-    {"name": "easter_egg", "emoji": "🌟", "label": "???", "min": 12},
+    {"name": "crushing", "emoji": "😍", "label": "Crushing", "min": 6},
+    {"name": "lovey_dovey", "emoji": "💕", "label": "Lovey Dovey", "min": 9},
+    {"name": "madly", "emoji": "🔥", "label": "Madly In Love", "min": 12},
+    {"name": "on_fire", "emoji": "💘", "label": "On Fire", "min": 15},
+    {"name": "inseparable", "emoji": "🫂", "label": "Inseparable", "min": 18},
+    {"name": "power_couple", "emoji": "👑", "label": "Power Couple", "min": 21},
+    {"name": "soulmates", "emoji": "💪", "label": "Soulmates", "min": 25},
+    {"name": "easter_egg", "emoji": "🌟", "label": "???", "min": 26},
 ]
 
 LOVE_MESSAGES = {
@@ -164,15 +168,39 @@ LOVE_MESSAGES = {
         "Cupid called — he's taking notes",
         "You two are giving main character energy",
     ],
+    "lovey_dovey": [
+        "The love is getting thick in here!",
+        "You two can't stop, won't stop logging love",
+        "This is what peak togetherness looks like",
+        "Your tracker is blushing at all this affection",
+    ],
     "madly": [
         "You two are basically a rom-com",
         "Netflix wants the rights to your love story",
         "The expense tracker can barely handle this much love",
         "Your love is louder than your spending",
     ],
+    "on_fire": [
+        "Someone call the fire department — this love is blazing!",
+        "At this rate, you'll need a bigger love meter",
+        "Cupid just retired — you two don't need him anymore",
+        "Your love story has more chapters than a novel",
+    ],
+    "inseparable": [
+        "Joined at the hip and the wallet",
+        "You two are practically finishing each other's expenses",
+        "Separation anxiety? More like separation impossibility",
+        "Even your spreadsheets are holding hands",
+    ],
+    "power_couple": [
+        "Bow down — the power couple has arrived",
+        "You two run this tracker like a Fortune 500",
+        "Beyoncé and Jay-Z are taking notes",
+        "Crown emoji earned. You two are royalty.",
+    ],
     "soulmates": [
-        "Perfectly synced — power couple confirmed",
-        "10 points! You've unlocked true love",
+        "Perfectly synced — soulmate status confirmed",
+        "25 points! You've unlocked true love",
         "Soulmate status: ACHIEVED",
         "You two are the reason love songs exist",
     ],
@@ -211,6 +239,10 @@ def love_points(df: pd.DataFrame, year: int | None = None, month: int | None = N
                 user_points[user] += 0.25
             else:
                 user_points[user] += 1.0
+
+    # Cap each user's points at 25
+    for user in user_points:
+        user_points[user] = min(user_points[user], 25.0)
 
     combined = sum(user_points.values())
 

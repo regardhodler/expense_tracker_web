@@ -188,30 +188,54 @@ class TestLovePoints:
         assert result["emoji"] == "🥰"
 
     def test_tier_crushing(self):
-        df = self._make_rows(husband_manual=3, wife_manual=2)
+        df = self._make_rows(husband_manual=3, wife_manual=3)
         result = love_points(df)
         assert result["tier"] == "crushing"
         assert result["emoji"] == "😍"
 
+    def test_tier_lovey_dovey(self):
+        df = self._make_rows(husband_manual=5, wife_manual=4)
+        result = love_points(df)
+        assert result["tier"] == "lovey_dovey"
+        assert result["emoji"] == "💕"
+
     def test_tier_madly(self):
-        df = self._make_rows(husband_manual=4, wife_manual=3)
+        df = self._make_rows(husband_manual=6, wife_manual=6)
         result = love_points(df)
         assert result["tier"] == "madly"
         assert result["emoji"] == "🔥"
 
+    def test_tier_on_fire(self):
+        df = self._make_rows(husband_manual=8, wife_manual=7)
+        result = love_points(df)
+        assert result["tier"] == "on_fire"
+        assert result["emoji"] == "💘"
+
+    def test_tier_inseparable(self):
+        df = self._make_rows(husband_manual=9, wife_manual=9)
+        result = love_points(df)
+        assert result["tier"] == "inseparable"
+        assert result["emoji"] == "🫂"
+
+    def test_tier_power_couple(self):
+        df = self._make_rows(husband_manual=11, wife_manual=10)
+        result = love_points(df)
+        assert result["tier"] == "power_couple"
+        assert result["emoji"] == "👑"
+
     def test_tier_soulmates(self):
-        df = self._make_rows(husband_manual=5, wife_manual=5)
+        df = self._make_rows(husband_manual=13, wife_manual=12)
         result = love_points(df)
         assert result["tier"] == "soulmates"
         assert result["emoji"] == "💪"
 
-    def test_tier_soulmates_at_11(self):
-        df = self._make_rows(husband_manual=6, wife_manual=5)
+    def test_tier_soulmates_at_25(self):
+        df = self._make_rows(husband_manual=13, wife_manual=12)
         result = love_points(df)
         assert result["tier"] == "soulmates"
 
     def test_tier_easter_egg(self):
-        df = self._make_rows(husband_manual=7, wife_manual=5)
+        df = self._make_rows(husband_manual=14, wife_manual=12)
         result = love_points(df)
         assert result["tier"] == "easter_egg"
         assert result["emoji"] == "🌟"
