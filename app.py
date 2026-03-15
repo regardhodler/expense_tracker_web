@@ -698,6 +698,12 @@ def page_recurring(username: str):
                     e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
                 e_description = st.text_input("Description (optional)", value=edit_rec["description"] or "",
                                               max_chars=MAX_DESCRIPTION_LENGTH)
+                from analysis import DISPLAY_NAMES
+                person_options = ["Jude", "Wincyl"]
+                current_person = DISPLAY_NAMES.get(edit_rec.get("added_by", ""), "Jude")
+                e_added_for = st.selectbox("Who is this for?", person_options,
+                                           index=person_options.index(current_person) if current_person in person_options else 0,
+                                           key="edit_recurring_for")
                 if e_frequency == "monthly":
                     e_day_of_month = st.number_input("Day of Month", min_value=1, max_value=31,
                                                      value=edit_rec["day_of_month"] or 1)
@@ -722,9 +728,10 @@ def page_recurring(username: str):
                     if not e_name.strip():
                         st.error("Name is required.")
                     else:
+                        e_added_by = next((k for k, v in DISPLAY_NAMES.items() if v == e_added_for), edit_rec.get("added_by"))
                         update_recurring_expense(
                             editing_id, e_name.strip(), e_amount, e_category,
-                            e_description.strip(), e_frequency, e_day_of_month, e_start_date,
+                            e_description.strip(), e_frequency, e_day_of_month, e_start_date, e_added_by,
                         )
                         st.session_state.pop("editing_recurring_id", None)
                         st.session_state.pop("edit_freq", None)

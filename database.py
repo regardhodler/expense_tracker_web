@@ -263,15 +263,24 @@ def get_recurring_expenses(active_only: bool = True) -> list[dict]:
 
 def update_recurring_expense(expense_id: int, name: str, amount: float, category: str,
                              description: str, frequency: str, day_of_month: int,
-                             start_date: str | None = None):
+                             start_date: str | None = None, added_by: str | None = None):
     conn = get_connection()
-    conn.execute(
-        """UPDATE recurring_expenses
-           SET name = ?, amount = ?, category = ?, description = ?,
-               frequency = ?, day_of_month = ?, start_date = ?
-           WHERE id = ?""",
-        (name, round(amount, 2), category, description, frequency, day_of_month, start_date, expense_id),
-    )
+    if added_by is not None:
+        conn.execute(
+            """UPDATE recurring_expenses
+               SET name = ?, amount = ?, category = ?, description = ?,
+                   frequency = ?, day_of_month = ?, start_date = ?, added_by = ?
+               WHERE id = ?""",
+            (name, round(amount, 2), category, description, frequency, day_of_month, start_date, added_by, expense_id),
+        )
+    else:
+        conn.execute(
+            """UPDATE recurring_expenses
+               SET name = ?, amount = ?, category = ?, description = ?,
+                   frequency = ?, day_of_month = ?, start_date = ?
+               WHERE id = ?""",
+            (name, round(amount, 2), category, description, frequency, day_of_month, start_date, expense_id),
+        )
     _sync_write(conn)
 
 
