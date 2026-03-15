@@ -552,6 +552,9 @@ def page_recurring(username: str):
         edit_rec = next((r for r in recurring_all if r["id"] == editing_id), None)
         if edit_rec:
             st.subheader(f"Edit: {edit_rec['name']}")
+            freq_options = ["monthly", "weekly", "biweekly"]
+            freq_idx = freq_options.index(edit_rec["frequency"]) if edit_rec["frequency"] in freq_options else 0
+            e_frequency = st.selectbox("Frequency", freq_options, index=freq_idx, key="edit_freq")
             with st.form("edit_recurring_form"):
                 e_name = st.text_input("Name", value=edit_rec["name"], max_chars=100)
                 col1, col2 = st.columns(2)
@@ -563,25 +566,19 @@ def page_recurring(username: str):
                     e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
                 e_description = st.text_input("Description (optional)", value=edit_rec["description"] or "",
                                               max_chars=MAX_DESCRIPTION_LENGTH)
-                col3, col4 = st.columns(2)
-                freq_options = ["monthly", "weekly", "biweekly"]
-                freq_idx = freq_options.index(edit_rec["frequency"]) if edit_rec["frequency"] in freq_options else 0
-                with col3:
-                    e_frequency = st.selectbox("Frequency", freq_options, index=freq_idx)
-                with col4:
-                    if e_frequency == "monthly":
-                        e_day_of_month = st.number_input("Day of Month", min_value=1, max_value=31,
-                                                         value=edit_rec["day_of_month"] or 1)
-                        e_start_date = None
-                    else:
-                        existing_start = None
-                        if edit_rec.get("start_date"):
-                            from datetime import datetime as _dt
-                            existing_start = _dt.strptime(edit_rec["start_date"], "%Y-%m-%d").date()
-                        e_start_date_input = st.date_input("Start Date",
-                                                           value=existing_start or date.today())
-                        e_start_date = e_start_date_input.isoformat()
-                        e_day_of_month = 1
+                if e_frequency == "monthly":
+                    e_day_of_month = st.number_input("Day of Month", min_value=1, max_value=31,
+                                                     value=edit_rec["day_of_month"] or 1)
+                    e_start_date = None
+                else:
+                    existing_start = None
+                    if edit_rec.get("start_date"):
+                        from datetime import datetime as _dt
+                        existing_start = _dt.strptime(edit_rec["start_date"], "%Y-%m-%d").date()
+                    e_start_date_input = st.date_input("Start Date",
+                                                       value=existing_start or date.today())
+                    e_start_date = e_start_date_input.isoformat()
+                    e_day_of_month = 1
 
                 col_save, col_cancel = st.columns(2)
                 with col_save:
@@ -608,6 +605,7 @@ def page_recurring(username: str):
 
     # --- Add recurring ---
     st.subheader("Add Recurring Expense")
+    frequency = st.selectbox("Frequency", ["monthly", "weekly", "biweekly"], key="add_freq")
     with st.form("recurring_form", clear_on_submit=True):
         name = st.text_input("Name (e.g. Rent, Netflix)", max_chars=100)
         col1, col2 = st.columns(2)
@@ -617,17 +615,13 @@ def page_recurring(username: str):
             category = st.selectbox("Category", CATEGORIES)
         description = st.text_input("Description (optional)", "", max_chars=MAX_DESCRIPTION_LENGTH)
 
-        col3, col4 = st.columns(2)
-        with col3:
-            frequency = st.selectbox("Frequency", ["monthly", "weekly", "biweekly"])
-        with col4:
-            if frequency == "monthly":
-                day_of_month = st.number_input("Day of Month", min_value=1, max_value=31, value=min(date.today().day, 28))
-                start_date = None
-            else:
-                start_date_input = st.date_input("Start Date", value=date.today())
-                start_date = start_date_input.isoformat()
-                day_of_month = 1
+        if frequency == "monthly":
+            day_of_month = st.number_input("Day of Month", min_value=1, max_value=31, value=min(date.today().day, 28))
+            start_date = None
+        else:
+            start_date_input = st.date_input("Start Date", value=date.today())
+            start_date = start_date_input.isoformat()
+            day_of_month = 1
 
         if st.form_submit_button("Add Recurring Expense", use_container_width=True):
             if not name.strip():
