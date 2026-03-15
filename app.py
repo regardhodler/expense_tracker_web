@@ -508,51 +508,6 @@ def page_monthly_view(username: str):
 def page_analysis(username: str):
     st.header("Analysis & Reports")
 
-    # --- Contributions Section ---
-    st.subheader("💰 Contributions")
-    contrib_options = ["Weekly", "Monthly", "6 Months", "1 Year", "YTD"]
-    contrib_period = st.selectbox("Filter by", contrib_options, key="contrib_filter")
-
-    today = date.today()
-    if contrib_period == "Weekly":
-        c_start = today - pd.Timedelta(days=today.weekday())  # Monday
-        c_end = today
-    elif contrib_period == "Monthly":
-        c_start = today.replace(day=1)
-        c_end = today
-    elif contrib_period == "6 Months":
-        c_start = (today - pd.DateOffset(months=6)).date()
-        c_end = today
-    elif contrib_period == "1 Year":
-        c_start = (today - pd.DateOffset(years=1)).date()
-        c_end = today
-    else:  # YTD
-        c_start = today.replace(month=1, day=1)
-        c_end = today
-
-    contrib_rows = get_expenses_between(c_start, c_end)
-    contrib_df = rows_to_dataframe(contrib_rows)
-
-    if contrib_df.empty:
-        st.info(f"No expenses found for {contrib_period}.")
-    else:
-        from analysis import DISPLAY_NAMES
-        by_person = contrib_df.groupby("added_by")["amount"].sum().reset_index()
-        by_person.columns = ["Person", "Total"]
-        grand_total = by_person["Total"].sum()
-        by_person["% Share"] = (by_person["Total"] / grand_total * 100).round(1)
-
-        c1, c2 = st.columns(2)
-        for i, col in enumerate([c1, c2]):
-            if i < len(by_person):
-                row = by_person.iloc[i]
-                display = DISPLAY_NAMES.get(row["Person"], row["Person"])
-                col.metric(display, f"${row['Total']:,.2f}", f"{row['% Share']}% of total")
-
-        st.caption(f"Period: {c_start} to {c_end}")
-
-    st.divider()
-
     period = st.selectbox("Period", PERIOD_OPTIONS)
 
     specific_month, specific_year = None, None
@@ -627,6 +582,50 @@ def page_analysis(username: str):
     cdn = canadian_comparison(df, start, end)
     st.plotly_chart(canadian_comparison_chart(cdn), use_container_width=True)
     st.dataframe(cdn, use_container_width=True, hide_index=True)
+
+    # --- Contributions Section ---
+    st.divider()
+    st.subheader("💰 Contributions")
+    contrib_options = ["Weekly", "Monthly", "6 Months", "1 Year", "YTD"]
+    contrib_period = st.selectbox("Filter by", contrib_options, key="contrib_filter")
+
+    today = date.today()
+    if contrib_period == "Weekly":
+        c_start = today - pd.Timedelta(days=today.weekday())  # Monday
+        c_end = today
+    elif contrib_period == "Monthly":
+        c_start = today.replace(day=1)
+        c_end = today
+    elif contrib_period == "6 Months":
+        c_start = (today - pd.DateOffset(months=6)).date()
+        c_end = today
+    elif contrib_period == "1 Year":
+        c_start = (today - pd.DateOffset(years=1)).date()
+        c_end = today
+    else:  # YTD
+        c_start = today.replace(month=1, day=1)
+        c_end = today
+
+    contrib_rows = get_expenses_between(c_start, c_end)
+    contrib_df = rows_to_dataframe(contrib_rows)
+
+    if contrib_df.empty:
+        st.info(f"No expenses found for {contrib_period}.")
+    else:
+        from analysis import DISPLAY_NAMES
+        by_person = contrib_df.groupby("added_by")["amount"].sum().reset_index()
+        by_person.columns = ["Person", "Total"]
+        grand_total = by_person["Total"].sum()
+        by_person["% Share"] = (by_person["Total"] / grand_total * 100).round(1)
+
+        c1, c2 = st.columns(2)
+        for i, col in enumerate([c1, c2]):
+            if i < len(by_person):
+                row = by_person.iloc[i]
+                display = DISPLAY_NAMES.get(row["Person"], row["Person"])
+                col.metric(display, f"${row['Total']:,.2f}", f"{row['% Share']}% of total")
+
+        st.caption(f"Period: {c_start} to {c_end}")
 
 
 def page_budgets(username: str):
