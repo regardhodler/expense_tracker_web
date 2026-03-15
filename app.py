@@ -465,6 +465,7 @@ def page_monthly_view(username: str):
         "Transportation": "#2196F3",
         "Personal": "#9C27B0",
         "Entertainment": "#00BCD4",
+        "Utilities": "#FF5722",
         "Others": "#607D8B",
     }
 

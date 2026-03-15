@@ -11,6 +11,7 @@ CATEGORY_COLORS = {
     "Transportation": "#AB63FA",
     "Personal": "#FFA15A",
     "Entertainment": "#19D3F3",
+    "Utilities": "#B6E880",
     "Others": "#FF6692",
 }
 

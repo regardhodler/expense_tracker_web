@@ -7,7 +7,7 @@ from dateutil.relativedelta import relativedelta
 
 CATEGORIES = [
     "Housing", "Food", "Health", "Transportation",
-    "Personal", "Entertainment", "Others",
+    "Personal", "Entertainment", "Utilities", "Others",
 ]
 
 PERIOD_OPTIONS = [
@@ -279,6 +279,7 @@ CANADIAN_MONTHLY_AVERAGES = {
     "Housing": 2100.00,
     "Food": 1050.00,
     "Transportation": 950.00,
+    "Utilities": 350.00,
     "Health": 300.00,
     "Personal": 250.00,
     "Entertainment": 200.00,
