@@ -340,6 +340,8 @@ def page_add_expense(username: str):
         else:
             description = st.text_input("Description (optional)", "", max_chars=MAX_DESCRIPTION_LENGTH)
 
+        added_for = st.selectbox("Who is this for?", ["Jude", "Wincyl"], key="add_expense_for")
+
         submitted = st.form_submit_button("Add Expense", use_container_width=True)
 
         if submitted:
@@ -361,7 +363,9 @@ def page_add_expense(username: str):
                 else:
                     st.error(msg)
             else:
-                add_expense(exp_date, amount, category, description.strip(), username)
+                from analysis import DISPLAY_NAMES
+                added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
+                add_expense(exp_date, amount, category, description.strip(), added_by)
                 st.success(f"Added ${amount:,.2f} for {category} on {exp_date}!")
                 st.session_state.pop("_confirm_duplicate", None)
 
@@ -670,7 +674,7 @@ def page_budgets(username: str):
 
 
 def page_recurring(username: str):
-    st.header("Recurring Payments")
+    st.header("Recurring Expense")
 
     # --- Edit form (shown when editing) ---
     editing_id = st.session_state.get("editing_recurring_id")
@@ -744,6 +748,7 @@ def page_recurring(username: str):
         with col2:
             category = st.selectbox("Category", CATEGORIES)
         description = st.text_input("Description (optional)", "", max_chars=MAX_DESCRIPTION_LENGTH)
+        added_for = st.selectbox("Who is this for?", ["Jude", "Wincyl"], key="recurring_expense_for")
 
         if frequency == "monthly":
             day_of_month = st.number_input("Day of Month", min_value=1, max_value=31, value=min(date.today().day, 28))
@@ -757,9 +762,11 @@ def page_recurring(username: str):
             if not name.strip():
                 st.error("Name is required.")
             else:
+                from analysis import DISPLAY_NAMES
+                added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
                 add_recurring_expense(
                     name.strip(), amount, category, description.strip(),
-                    frequency, day_of_month, username, start_date,
+                    frequency, day_of_month, added_by, start_date,
                 )
                 st.session_state.pop("recurring_processed", None)
                 st.success(f"Added recurring: {name} — ${amount:,.2f} ({frequency})")
@@ -987,7 +994,7 @@ def main():
     page = st.sidebar.radio(
         "Navigate",
         ["Dashboard", "Add Expense", "Monthly View", "Analysis",
-         "Search", "Budgets", "Recurring", "Manage Expenses"],
+         "Search", "Budgets", "Recurring Expense", "Manage Expenses"],
     )
 
     pages = {
@@ -997,7 +1004,7 @@ def main():
         "Analysis": page_analysis,
         "Search": page_search,
         "Budgets": page_budgets,
-        "Recurring": page_recurring,
+        "Recurring Expense": page_recurring,
         "Manage Expenses": page_manage_expenses,
     }
     pages[page](username)
