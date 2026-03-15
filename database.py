@@ -8,7 +8,7 @@ so the path is stable on Streamlit Cloud.
 import tempfile
 import os
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import libsql_experimental as libsql
 import streamlit as st
@@ -277,7 +277,21 @@ def update_recurring_expense(expense_id: int, name: str, amount: float, category
 
 def deactivate_recurring_expense(expense_id: int):
     conn = get_connection()
+    # Get the recurring expense details to build the description pattern
+    rec = conn.execute(
+        "SELECT name, description, added_by FROM recurring_expenses WHERE id = ?",
+        (expense_id,),
+    ).fetchone()
     conn.execute("UPDATE recurring_expenses SET active = 0 WHERE id = ?", (expense_id,))
+    # Delete future materialized entries for this recurring expense
+    if rec:
+        name, desc, added_by = rec
+        full_desc = f"[Recurring] {name}" + (f" — {desc}" if desc else "")
+        tomorrow = date.today() + timedelta(days=1)
+        conn.execute(
+            "DELETE FROM expenses WHERE description = ? AND added_by = ? AND date >= ?",
+            (full_desc, added_by, tomorrow.isoformat()),
+        )
     _sync_write(conn)
 
 

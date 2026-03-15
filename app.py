@@ -14,7 +14,6 @@ from database import (
     get_budgets, set_budget, get_monthly_category_totals,
     add_recurring_expense, get_recurring_expenses, deactivate_recurring_expense,
     update_recurring_expense, process_recurring_expenses,
-    get_connection, _sync_write,
 )
 from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
@@ -673,6 +672,7 @@ def page_recurring(username: str):
         with col4:
             if st.button("Deactivate", key=f"deactivate_{rec['id']}"):
                 deactivate_recurring_expense(rec["id"])
+                st.session_state.pop("recurring_processed", None)
                 st.rerun()
 
 
@@ -834,43 +834,6 @@ def page_manage_expenses(username: str):
 # Main
 # ---------------------------------------------------------------------------
 
-def page_cleanup_duplicates(_username):
-    """One-time admin page to remove duplicate recurring entries on 2026-03-03."""
-    st.header("Cleanup Duplicate Entries (March 3)")
-
-    conn = get_connection()
-    rows = conn.execute("""
-        SELECT date, description, added_by, GROUP_CONCAT(id) AS ids, COUNT(*) AS cnt
-        FROM expenses
-        WHERE date = '2026-03-03'
-        GROUP BY date, description, added_by
-        HAVING COUNT(*) > 1
-    """).fetchall()
-
-    if not rows:
-        st.success("No duplicates found on 2026-03-03.")
-        return
-
-    st.warning(f"Found {len(rows)} group(s) with duplicates:")
-    for row in rows:
-        all_ids = sorted(int(i) for i in row[3].split(","))
-        keep = all_ids[0]
-        remove = all_ids[1:]
-        st.write(f"- **{row[1]}** ({row[2]}): keeping id {keep}, would delete {remove}")
-
-    if st.button("Delete Duplicates", type="primary"):
-        ids_to_delete = []
-        for row in rows:
-            all_ids = sorted(int(i) for i in row[3].split(","))
-            ids_to_delete.extend(all_ids[1:])
-
-        placeholders = ",".join("?" for _ in ids_to_delete)
-        conn.execute(f"DELETE FROM expenses WHERE id IN ({placeholders})", ids_to_delete)
-        _sync_write(conn)
-        st.success(f"Deleted {len(ids_to_delete)} duplicate row(s). Remove this page from app.py when done.")
-        st.rerun()
-
-
 def main():
     init_db()
     inject_pwa()
@@ -896,8 +859,7 @@ def main():
     page = st.sidebar.radio(
         "Navigate",
         ["Dashboard", "Add Expense", "Monthly View", "Analysis",
-         "Search", "Budgets", "Recurring", "Manage Expenses",
-         "Cleanup Duplicates"],
+         "Search", "Budgets", "Recurring", "Manage Expenses"],
     )
 
     pages = {
@@ -909,7 +871,6 @@ def main():
         "Budgets": page_budgets,
         "Recurring": page_recurring,
         "Manage Expenses": page_manage_expenses,
-        "Cleanup Duplicates": page_cleanup_duplicates,
     }
     pages[page](username)
 
