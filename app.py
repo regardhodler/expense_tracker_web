@@ -19,7 +19,7 @@ from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
     get_period_dates, category_summary, daily_totals_for_month,
     expenses_for_day, spending_projections, month_comparison,
-    love_comparison, canadian_comparison,
+    love_points, LOVE_TIERS, canadian_comparison,
 )
 from visualization import (
     pie_chart, bar_chart, monthly_trend_chart, comparison_bar_chart,
@@ -249,23 +249,73 @@ def page_dashboard(username: str):
             f"${proj['projected_total']:,.2f} this month."
         )
 
-    # Romance Status
-    if month_rows:
-        st.subheader("💕 Romance Status")
-        df_month = rows_to_dataframe(month_rows)
-        comp_df, lover, provider, gap_pct, love_level, love_msg = love_comparison(df_month)
+    # Love Points
+    st.subheader("💕 Romance Status")
+    lp = love_points(rows_to_dataframe(month_rows))
 
-        level_emoji = {"soulmates": "💪", "sweet": "🥰", "crushing": "😍", "madly": "🔥"}
-        emoji = level_emoji.get(love_level, "💕")
+    # 1. Love Message Banner
+    next_month_name = calendar.month_name[today.month % 12 + 1] if today.month < 12 else "January"
+    st.markdown(
+        f'<div style="text-align:center;padding:24px 20px;'
+        f'background:linear-gradient(135deg,#ff6b9d,#c44dff);'
+        f'border-radius:14px;margin:10px 0">'
+        f'<h2 style="color:white;margin:0;font-size:1.8em">{lp["emoji"]} {lp["message"]}</h2>'
+        f'<p style="color:#ffe0f0;margin:5px 0 0;font-size:0.9em">'
+        f'Combined Love Points: {lp["combined_points"]:.1f} · Resets {next_month_name} 1st</p>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
-        st.markdown(
-            f'<div style="text-align:center;padding:24px 20px;'
-            f'background:linear-gradient(135deg,#ff6b9d,#c44dff);'
-            f'border-radius:14px;margin:10px 0">'
-            f'<h2 style="color:white;margin:0;font-size:1.8em">{emoji} {love_msg}</h2>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
+    # 2. Shared Love Meter
+    if lp["next_tier_threshold"] is not None:
+        progress_pct = min(lp["combined_points"] / lp["next_tier_threshold"], 1.0) * 100
+        next_tier = LOVE_TIERS[LOVE_TIERS.index(
+            next(t for t in LOVE_TIERS if t["name"] == lp["tier"])
+        ) + 1]
+        right_label = (f'{lp["combined_points"]:.1f} / {lp["next_tier_threshold"]} pts to '
+                       f'{next_tier["emoji"]} {next_tier["label"]}')
+    else:
+        progress_pct = 100
+        right_label = "LOVE OVERLOAD!" if lp["tier"] == "easter_egg" else "MAX LOVE REACHED!"
+
+    st.markdown(
+        f'<div style="margin:16px 0">'
+        f'<div style="display:flex;justify-content:space-between;color:#ccc;font-size:0.8em;margin-bottom:6px">'
+        f'<span>💕 Love Meter — <strong style="color:#ff6b9d">{lp["label"]}</strong></span>'
+        f'<span>{right_label}</span></div>'
+        f'<div style="background:#2a2a4a;border-radius:10px;height:24px;overflow:hidden">'
+        f'<div style="background:linear-gradient(90deg,#ff6b9d,#c44dff);width:{progress_pct:.1f}%;'
+        f'height:100%;border-radius:10px"></div></div>'
+        f'<div style="display:flex;justify-content:space-between;color:#666;font-size:0.65em;margin-top:4px">'
+        f'<span>❄️ 0</span><span>🥰 3</span><span>😍 5</span><span>🔥 7</span><span>💪 10</span></div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    # 3. Individual Contribution Bars
+    from analysis import DISPLAY_NAMES
+    h_pts = lp["points"]["husband"]
+    w_pts = lp["points"]["wife"]
+    total_pts = lp["combined_points"]
+    h_pct = (h_pts / total_pts * 100) if total_pts > 0 else 0
+    w_pct = (w_pts / total_pts * 100) if total_pts > 0 else 0
+
+    st.markdown(
+        f'<div style="display:flex;gap:16px;margin:12px 0">'
+        f'<div style="flex:1">'
+        f'<div style="color:#ccc;font-size:0.8em;margin-bottom:4px">'
+        f'💙 {DISPLAY_NAMES["husband"]} — <strong>{h_pts:.1f} pts</strong></div>'
+        f'<div style="background:#2a2a4a;border-radius:8px;height:18px;overflow:hidden">'
+        f'<div style="background:linear-gradient(90deg,#4a8cff,#6ba3ff);width:{h_pct:.1f}%;'
+        f'height:100%;border-radius:8px"></div></div></div>'
+        f'<div style="flex:1">'
+        f'<div style="color:#ccc;font-size:0.8em;margin-bottom:4px">'
+        f'💗 {DISPLAY_NAMES["wife"]} — <strong>{w_pts:.1f} pts</strong></div>'
+        f'<div style="background:#2a2a4a;border-radius:8px;height:18px;overflow:hidden">'
+        f'<div style="background:linear-gradient(90deg,#ff6b9d,#ff8fb3);width:{w_pct:.1f}%;'
+        f'height:100%;border-radius:8px"></div></div></div></div>',
+        unsafe_allow_html=True,
+    )
 
     # Month-over-Month comparison
     if month_rows or prev_month_rows:
