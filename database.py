@@ -365,7 +365,13 @@ def process_recurring_expenses():
         elif rec["frequency"] in ("weekly", "biweekly"):
             step = 7 if rec["frequency"] == "weekly" else 14
             if rec.get("start_date"):
-                cursor = max(datetime.strptime(rec["start_date"], "%Y-%m-%d").date(), jan1)
+                anchor = datetime.strptime(rec["start_date"], "%Y-%m-%d").date()
+                if anchor < jan1:
+                    days_diff = (jan1 - anchor).days
+                    remainder = days_diff % step
+                    cursor = jan1 if remainder == 0 else jan1 + timedelta(days=step - remainder)
+                else:
+                    cursor = anchor
             else:
                 cursor = jan1
 
