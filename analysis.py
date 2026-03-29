@@ -418,16 +418,20 @@ def get_monthly_challenges(month_rows: list[dict], prev_month_total: float, budg
 
     # Challenge 4: Frugal Month
     ch4_completed = prev_month_total > 0 and month_total < prev_month_total
-    if prev_month_total > 0 and month_total > 0:
-        ch4_pct = min(prev_month_total / month_total * 100, 100.0)
-    elif prev_month_total > 0 and month_total == 0:
+    ch4_failed = prev_month_total > 0 and month_total >= prev_month_total
+    if ch4_completed:
         ch4_pct = 100.0
+    elif prev_month_total > 0 and month_total > 0:
+        # Show how far over budget you are — bar fills inversely (0% = way over, approaching 100% = almost under)
+        ch4_pct = max(0.0, min(prev_month_total / month_total * 100, 99.9))
     else:
         ch4_pct = 0.0
     if prev_month_total > 0:
         diff = prev_month_total - month_total
-        ch4_detail = (f"${abs(diff):,.2f} {'saved vs' if diff >= 0 else 'more than'} last month "
-                      f"(${month_total:,.2f} vs ${prev_month_total:,.2f})")
+        if diff >= 0:
+            ch4_detail = f"✅ ${diff:,.2f} saved vs last month (${month_total:,.2f} vs ${prev_month_total:,.2f})"
+        else:
+            ch4_detail = f"❌ ${abs(diff):,.2f} over last month (${month_total:,.2f} this month vs ${prev_month_total:,.2f} last month)"
     else:
         ch4_detail = "No previous month data to compare"
 

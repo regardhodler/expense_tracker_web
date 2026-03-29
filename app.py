@@ -21,7 +21,7 @@ from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
     get_period_dates, category_summary, daily_totals_for_month,
     expenses_for_day, spending_projections, month_comparison,
-    love_points, LOVE_TIERS, canadian_comparison, DISPLAY_NAMES,
+    love_points, LOVE_TIERS, LOVE_MESSAGES, canadian_comparison, DISPLAY_NAMES,
     get_streaks, get_monthly_challenges, get_achievements,
     get_love_history, get_who_spends_more,
 )
@@ -310,8 +310,14 @@ def page_dashboard(username: str):
     )
 
     # 2. Shared Love Meter
-    if lp["next_tier_threshold"] is not None:
-        progress_pct = min(lp["combined_points"] / lp["next_tier_threshold"], 1.0) * 100
+    _MAX_METER = 25  # bar fills completely at 25 pts
+    if lp["combined_points"] >= _MAX_METER:
+        progress_pct = 100
+        _egg_msgs = LOVE_MESSAGES["easter_egg"]
+        _egg_msg = _egg_msgs[int(lp["combined_points"]) % len(_egg_msgs)]
+        right_label = f'🌟 {_egg_msg}'
+    elif lp["next_tier_threshold"] is not None:
+        progress_pct = min(lp["combined_points"] / _MAX_METER, 1.0) * 100
         next_tier = LOVE_TIERS[LOVE_TIERS.index(
             next(t for t in LOVE_TIERS if t["name"] == lp["tier"])
         ) + 1]
@@ -319,7 +325,7 @@ def page_dashboard(username: str):
                        f'{next_tier["emoji"]} {next_tier["label"]}')
     else:
         progress_pct = 100
-        right_label = "LOVE OVERLOAD!" if lp["tier"] == "easter_egg" else "MAX LOVE REACHED!"
+        right_label = "MAX LOVE REACHED!"
 
     st.markdown(
         f'<div style="margin:16px 0">'
@@ -330,7 +336,8 @@ def page_dashboard(username: str):
         f'<div style="background:linear-gradient(90deg,#ff6b9d,#c44dff);width:{progress_pct:.1f}%;'
         f'height:100%;border-radius:10px"></div></div>'
         f'<div style="display:flex;justify-content:space-between;color:#666;font-size:0.65em;margin-top:4px">'
-        f'<span>❄️ 0</span><span>🥰 3</span><span>😍 5</span><span>🔥 7</span><span>💪 10</span></div>'
+        f'<span>❄️0</span><span>🥰3</span><span>😍6</span><span>💕9</span><span>🔥12</span>'
+        f'<span>💘15</span><span>🫂18</span><span>👑21</span><span>💪25</span></div>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -398,7 +405,7 @@ def page_dashboard(username: str):
         ch_cols = st.columns(min(len(challenges), 3))
         for i, ch in enumerate(challenges):
             with ch_cols[i % len(ch_cols)]:
-                status_icon = "✅" if ch["completed"] else "⏳"
+                status_icon = "✅" if ch["completed"] else ("❌" if ch["detail"].startswith("❌") else "⏳")
                 pct = ch["progress_pct"]
                 bar_color = "#2ecc71" if ch["completed"] else "linear-gradient(90deg,#ff6b9d,#c44dff)"
                 st.markdown(
