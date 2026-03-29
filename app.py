@@ -458,6 +458,25 @@ def page_dashboard(username: str):
                     lambda x: f"+{x:.1f}%" if x >= 0 else f"{x:.1f}%"
                 )
                 st.dataframe(display_comp, use_container_width=True, hide_index=True)
+
+                # Total spending summary row
+                _total_delta = cur_t - prev_t
+                _total_pct = ((_total_delta / prev_t) * 100) if prev_t else 0
+                _delta_color = "#ef4444" if _total_delta > 0 else "#4ade80"
+                _delta_arrow = "▲" if _total_delta > 0 else "▼"
+                _cur_label_s = today.strftime("%b %Y")
+                _prev_label_s = (today.replace(day=1) - pd.Timedelta(days=1)).strftime("%b %Y")
+                st.markdown(
+                    f"""<div style="background:#1a1a2e;border-radius:10px;padding:14px 18px;margin:6px 0;display:flex;gap:32px;align-items:center">
+                    <div><span style="color:#aaa;font-size:0.8rem">TOTAL {_cur_label_s.upper()}</span><br>
+                    <span style="font-size:1.2rem;font-weight:700;color:#fff">${cur_t:,.2f}</span></div>
+                    <div><span style="color:#aaa;font-size:0.8rem">TOTAL {_prev_label_s.upper()}</span><br>
+                    <span style="font-size:1.2rem;font-weight:700;color:#fff">${prev_t:,.2f}</span></div>
+                    <div><span style="color:#aaa;font-size:0.8rem">CHANGE</span><br>
+                    <span style="font-size:1.2rem;font-weight:700;color:{_delta_color}">{_delta_arrow} ${abs(_total_delta):,.2f} ({_total_pct:+.1f}%)</span></div>
+                    </div>""",
+                    unsafe_allow_html=True,
+                )
                 st.caption("💡 Click a category bar to see its transactions below")
                 _dash_bar_sel = st.plotly_chart(
                     comparison_bar_chart(comp_df),
