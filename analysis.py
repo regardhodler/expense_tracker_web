@@ -210,6 +210,16 @@ LOVE_MESSAGES = {
         "Achievement unlocked: LOVE BEYOND MEASURE",
         "The tracker wasn't built for this level of romance. Impressive.",
         "You've gone where no couple has gone before. Respect.",
+        "🔞 At this point, the app suggests closing the laptop.",
+        "Jude, whatever you did this month — keep doing it. 👀",
+        "Wincyl said 'yes' and clearly meant it every single day.",
+        "This many points means somebody is getting very lucky tonight. 😏",
+        "The bedroom energy is OFF THE CHARTS. We don't make the rules.",
+        "Jude earned enough points to redeem them. In bed. Immediately.",
+        "25+ points? That's not a couple, that's a honeymoon that never ended.",
+        "At this level, the expense tracker doubles as a dating app. You win.",
+        "Wincyl out here logging receipts AND collecting her rewards. 👸",
+        "Certified freak, seven days a week — but make it financially responsible.",
     ],
 }
 
