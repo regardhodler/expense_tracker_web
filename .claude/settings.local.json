@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(fly version:*)",
+      "Bash(cd /c/Users/16476/expense_tracker_web && gh repo view regardhodler/expense_tracker_web --json url,visibility 2>&1)",
+      "Bash(cd:*)",
+      "Bash(bash \"C:\\\\Users\\\\16476\\\\.claude\\\\plugins\\\\cache\\\\superpowers-marketplace\\\\superpowers\\\\5.0.2\\\\skills\\\\brainstorming\\\\scripts\\\\start-server.sh\" --project-dir \"C:\\\\Users\\\\16476\\\\claude projects\\\\expense_tracker_web\")",
+      "Bash(bash \"C:/Users/16476/.claude/plugins/cache/superpowers-marketplace/superpowers/5.0.2/skills/brainstorming/scripts/start-server.sh\" --project-dir \"C:/Users/16476/claude projects/expense_tracker_web\")"
+    ]
+  }
+}

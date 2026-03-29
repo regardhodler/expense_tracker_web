@@ -1,0 +1,108 @@
+<h2>Love Dashboard Mockup</h2>
+<p class="subtitle">How the Romance Status section will look under the dashboard metrics</p>
+
+<div class="cards">
+  <!-- Mockup A: The full layout -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:8px;padding:20px;font-family:system-ui">
+
+        <!-- Love Message Banner -->
+        <div style="text-align:center;padding:20px;background:linear-gradient(135deg,#ff6b9d,#c44dff);border-radius:14px;margin-bottom:16px">
+          <div style="font-size:1.6em;color:white;font-weight:bold">🔥 You two are basically a rom-com 🔥</div>
+          <div style="color:#ffe0f0;font-size:0.85em;margin-top:4px">Combined Love Points: 47 · Resets Apr 1st</div>
+        </div>
+
+        <!-- Shared Love Meter -->
+        <div style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;color:#ccc;font-size:0.8em;margin-bottom:6px">
+            <span>💕 Love Meter — <strong style="color:#ff6b9d">Crushing</strong></span>
+            <span>47 / 50 pts to 🔥 Madly In Love</span>
+          </div>
+          <div style="background:#2a2a4a;border-radius:10px;height:24px;overflow:hidden;position:relative">
+            <div style="background:linear-gradient(90deg,#ff6b9d,#c44dff);width:94%;height:100%;border-radius:10px;transition:width 0.5s"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;color:#666;font-size:0.65em;margin-top:4px">
+            <span>Warming Up (0)</span>
+            <span>Sweet (10)</span>
+            <span>Crushing (25)</span>
+            <span>Madly (50)</span>
+          </div>
+        </div>
+
+        <!-- Individual Bars -->
+        <div style="display:flex;gap:16px">
+          <div style="flex:1">
+            <div style="color:#ccc;font-size:0.8em;margin-bottom:4px">💙 Jude — <strong>28 pts</strong></div>
+            <div style="background:#2a2a4a;border-radius:8px;height:18px;overflow:hidden">
+              <div style="background:linear-gradient(90deg,#4a8cff,#6ba3ff);width:60%;height:100%;border-radius:8px"></div>
+            </div>
+          </div>
+          <div style="flex:1">
+            <div style="color:#ccc;font-size:0.8em;margin-bottom:4px">💗 Wincyl — <strong>19 pts</strong></div>
+            <div style="background:#2a2a4a;border-radius:8px;height:18px;overflow:hidden">
+              <div style="background:linear-gradient(90deg,#ff6b9d,#ff8fb3);width:40%;height:100%;border-radius:8px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Layout A: Compact</h3>
+      <p>Love message on top, shared meter in the middle, individual bars at the bottom. Everything in one tight section.</p>
+    </div>
+  </div>
+
+  <!-- Mockup B: Separated layout -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:8px;padding:20px;font-family:system-ui">
+
+        <!-- Love Message Banner -->
+        <div style="text-align:center;padding:20px;background:linear-gradient(135deg,#ff6b9d,#c44dff);border-radius:14px;margin-bottom:20px">
+          <div style="font-size:1.6em;color:white;font-weight:bold">🔥 You two are basically a rom-com 🔥</div>
+          <div style="color:#ffe0f0;font-size:0.85em;margin-top:4px">Combined Love Points: 47 · Resets Apr 1st</div>
+        </div>
+
+        <!-- Two cards side by side -->
+        <div style="display:flex;gap:12px;margin-bottom:16px">
+          <div style="flex:1;background:#1e1e3a;border-radius:10px;padding:14px;border-left:4px solid #4a8cff">
+            <div style="color:#ccc;font-size:0.75em">💙 Jude's Points</div>
+            <div style="color:white;font-size:1.5em;font-weight:bold">28</div>
+            <div style="background:#2a2a4a;border-radius:6px;height:10px;margin-top:8px;overflow:hidden">
+              <div style="background:#4a8cff;width:60%;height:100%;border-radius:6px"></div>
+            </div>
+          </div>
+          <div style="flex:1;background:#1e1e3a;border-radius:10px;padding:14px;border-left:4px solid #ff6b9d">
+            <div style="color:#ccc;font-size:0.75em">💗 Wincyl's Points</div>
+            <div style="color:white;font-size:1.5em;font-weight:bold">19</div>
+            <div style="background:#2a2a4a;border-radius:6px;height:10px;margin-top:8px;overflow:hidden">
+              <div style="background:#ff6b9d;width:40%;height:100%;border-radius:6px"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Shared Love Meter -->
+        <div style="background:#1e1e3a;border-radius:10px;padding:14px">
+          <div style="display:flex;justify-content:space-between;color:#ccc;font-size:0.8em;margin-bottom:8px">
+            <span>💕 Love Meter</span>
+            <span style="color:#ff6b9d;font-weight:bold">Crushing → 3 more pts to Madly In Love!</span>
+          </div>
+          <div style="background:#2a2a4a;border-radius:10px;height:28px;overflow:hidden;position:relative">
+            <div style="background:linear-gradient(90deg,#ff6b9d,#c44dff,#ff6b9d);width:94%;height:100%;border-radius:10px;background-size:200% 100%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;color:#666;font-size:0.6em;margin-top:4px">
+            <span>❄️ 0</span>
+            <span>🥰 10</span>
+            <span>😍 25</span>
+            <span>🔥 50</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Layout B: Card-Based</h3>
+      <p>Individual scores in separate metric cards, shared love meter in its own card below. More spacious and readable.</p>
+    </div>
+  </div>
+</div>

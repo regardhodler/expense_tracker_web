@@ -15,7 +15,7 @@ import streamlit as st
 
 logger = logging.getLogger(__name__)
 
-_COLUMNS = ["id", "date", "amount", "category", "description", "added_by"]
+_COLUMNS = ["id", "date", "amount", "category", "description", "added_by", "is_tax_writeoff"]
 
 # ---------------------------------------------------------------------------
 # Connection management
@@ -84,7 +84,8 @@ def init_db():
             amount REAL NOT NULL,
             category TEXT NOT NULL,
             description TEXT,
-            added_by TEXT DEFAULT 'unknown'
+            added_by TEXT DEFAULT 'unknown',
+            is_tax_writeoff INTEGER DEFAULT 0
         )
     """)
     conn.execute("""
@@ -117,9 +118,29 @@ def init_db():
     except Exception:
         pass  # column already exists
 
+    # Migration: add is_tax_writeoff column for existing rows
+    try:
+        conn.execute("ALTER TABLE expenses ADD COLUMN is_tax_writeoff INTEGER DEFAULT 0")
+    except Exception:
+        pass  # column already exists
+
     # Indexes for recurring expense lookups
     conn.execute("CREATE INDEX IF NOT EXISTS idx_expenses_date_desc_added ON expenses(date, description, added_by)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_recurring_active ON recurring_expenses(active)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS savings_goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            target_amount REAL NOT NULL,
+            current_amount REAL NOT NULL DEFAULT 0,
+            category TEXT,
+            emoji TEXT DEFAULT '🎯',
+            created_by TEXT DEFAULT 'unknown',
+            created_at TEXT DEFAULT (datetime('now')),
+            completed INTEGER DEFAULT 0,
+            completed_at TEXT
+        )
+    """)
 
     _sync_write(conn)
 
@@ -128,11 +149,11 @@ def init_db():
 # Expense CRUD
 # ---------------------------------------------------------------------------
 
-def add_expense(date_val: date, amount: float, category: str, description: str, added_by: str):
+def add_expense(date_val: date, amount: float, category: str, description: str, added_by: str, is_tax_writeoff: bool = False):
     conn = get_connection()
     conn.execute(
-        "INSERT INTO expenses (date, amount, category, description, added_by) VALUES (?, ?, ?, ?, ?)",
-        (date_val.isoformat(), round(amount, 2), category, description, added_by),
+        "INSERT INTO expenses (date, amount, category, description, added_by, is_tax_writeoff) VALUES (?, ?, ?, ?, ?, ?)",
+        (date_val.isoformat(), round(amount, 2), category, description, added_by, int(is_tax_writeoff)),
     )
     _sync_write(conn)
 
@@ -142,7 +163,7 @@ def get_expense_by_id(expense_id: int) -> dict | None:
     conn = get_connection()
     _sync_read(conn)
     row = conn.execute(
-        "SELECT id, date, amount, category, description, added_by "
+        "SELECT id, date, amount, category, description, added_by, is_tax_writeoff "
         "FROM expenses WHERE id = ?",
         (expense_id,),
     ).fetchone()
@@ -151,12 +172,12 @@ def get_expense_by_id(expense_id: int) -> dict | None:
     return dict(zip(_COLUMNS, row))
 
 
-def update_expense(expense_id: int, date_val: date, amount: float, category: str, description: str):
+def update_expense(expense_id: int, date_val: date, amount: float, category: str, description: str, is_tax_writeoff: bool = False):
     """Update an existing expense."""
     conn = get_connection()
     conn.execute(
-        "UPDATE expenses SET date = ?, amount = ?, category = ?, description = ? WHERE id = ?",
-        (date_val.isoformat(), round(amount, 2), category, description, expense_id),
+        "UPDATE expenses SET date = ?, amount = ?, category = ?, description = ?, is_tax_writeoff = ? WHERE id = ?",
+        (date_val.isoformat(), round(amount, 2), category, description, int(is_tax_writeoff), expense_id),
     )
     _sync_write(conn)
 
@@ -171,7 +192,7 @@ def get_expenses_between(start_date: date, end_date: date) -> list[dict]:
     conn = get_connection()
     _sync_read(conn)
     rows = conn.execute(
-        "SELECT id, date, amount, category, description, added_by "
+        "SELECT id, date, amount, category, description, added_by, is_tax_writeoff "
         "FROM expenses WHERE date >= ? AND date <= ? ORDER BY date DESC, id DESC",
         (start_date.isoformat(), end_date.isoformat()),
     ).fetchall()
@@ -182,9 +203,21 @@ def get_recent_expenses(limit: int = 10) -> list[dict]:
     conn = get_connection()
     _sync_read(conn)
     rows = conn.execute(
-        "SELECT id, date, amount, category, description, added_by "
+        "SELECT id, date, amount, category, description, added_by, is_tax_writeoff "
         "FROM expenses ORDER BY date DESC, id DESC LIMIT ?",
         (limit,),
+    ).fetchall()
+    return _rows_to_dicts(rows)
+
+
+def get_tax_writeoffs(start_date: date, end_date: date) -> list[dict]:
+    """Return all tax write-off expenses in a date range."""
+    conn = get_connection()
+    _sync_read(conn)
+    rows = conn.execute(
+        "SELECT id, date, amount, category, description, added_by, is_tax_writeoff "
+        "FROM expenses WHERE is_tax_writeoff = 1 AND date >= ? AND date <= ? ORDER BY date DESC, id DESC",
+        (start_date.isoformat(), end_date.isoformat()),
     ).fetchall()
     return _rows_to_dicts(rows)
 
@@ -423,3 +456,53 @@ def process_recurring_expenses():
                 (last_date, rec_id),
             )
         _sync_write(conn)
+
+
+# ---------------------------------------------------------------------------
+# Savings Goals CRUD
+# ---------------------------------------------------------------------------
+
+_GOAL_COLUMNS = ["id", "name", "target_amount", "current_amount", "category",
+                  "emoji", "created_by", "created_at", "completed", "completed_at"]
+
+
+def get_savings_goals() -> list[dict]:
+    conn = get_connection()
+    _sync_read(conn)
+    rows = conn.execute(
+        f"SELECT {', '.join(_GOAL_COLUMNS)} FROM savings_goals ORDER BY completed ASC, created_at DESC"
+    ).fetchall()
+    return [dict(zip(_GOAL_COLUMNS, r)) for r in rows]
+
+
+def add_savings_goal(name: str, target_amount: float, category: str | None, emoji: str, created_by: str):
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO savings_goals (name, target_amount, category, emoji, created_by) VALUES (?, ?, ?, ?, ?)",
+        (name, round(target_amount, 2), category, emoji, created_by),
+    )
+    _sync_write(conn)
+
+
+def update_savings_goal_progress(goal_id: int, current_amount: float):
+    conn = get_connection()
+    conn.execute(
+        "UPDATE savings_goals SET current_amount = ? WHERE id = ?",
+        (round(current_amount, 2), goal_id),
+    )
+    _sync_write(conn)
+
+
+def complete_savings_goal(goal_id: int):
+    conn = get_connection()
+    conn.execute(
+        "UPDATE savings_goals SET completed = 1, completed_at = datetime('now') WHERE id = ?",
+        (goal_id,),
+    )
+    _sync_write(conn)
+
+
+def delete_savings_goal(goal_id: int):
+    conn = get_connection()
+    conn.execute("DELETE FROM savings_goals WHERE id = ?", (goal_id,))
+    _sync_write(conn)

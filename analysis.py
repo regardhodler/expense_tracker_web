@@ -240,10 +240,6 @@ def love_points(df: pd.DataFrame, year: int | None = None, month: int | None = N
             else:
                 user_points[user] += 1.0
 
-    # Cap each user's points at 25
-    for user in user_points:
-        user_points[user] = min(user_points[user], 25.0)
-
     combined = sum(user_points.values())
 
     # Determine tier (walk through tiers to find highest match)
@@ -303,4 +299,333 @@ def canadian_comparison(df: pd.DataFrame, start: date, end: date) -> pd.DataFram
             "% Diff": round(diff / cdn_avg * 100, 1),
             "Status": status,
         })
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Streaks
+# ---------------------------------------------------------------------------
+
+def get_streaks(all_rows: list[dict]) -> dict:
+    """Calculate logging streaks (current year only).
+
+    Returns: current_streak (both users), longest_streak (both users, this year),
+    jude_streak (individual), wincyl_streak (individual).
+    A day counts if at least 1 manual expense (not [Recurring]) was logged.
+    """
+    today = date.today()
+    year_start = date(today.year, 1, 1)
+
+    husband_dates: set = set()
+    wife_dates: set = set()
+
+    for r in all_rows:
+        desc = r.get("description", "") or ""
+        if desc.startswith("[Recurring]"):
+            continue
+        raw = r.get("date", "")
+        if isinstance(raw, str):
+            try:
+                d = date.fromisoformat(raw[:10])
+            except ValueError:
+                continue
+        elif hasattr(raw, "date"):
+            d = raw.date()
+        else:
+            continue
+        if d < year_start:
+            continue
+        user = r.get("added_by", "")
+        if user == "husband":
+            husband_dates.add(d)
+        elif user == "wife":
+            wife_dates.add(d)
+
+    combined_dates = husband_dates & wife_dates
+
+    def _streak(dates_set: set) -> int:
+        if not dates_set:
+            return 0
+        check = today if today in dates_set else today - timedelta(days=1)
+        streak = 0
+        while check >= year_start:
+            if check in dates_set:
+                streak += 1
+                check -= timedelta(days=1)
+            else:
+                break
+        return streak
+
+    def _longest(dates_set: set) -> int:
+        if not dates_set:
+            return 0
+        longest = 0
+        run = 0
+        prev = None
+        for d in sorted(dates_set):
+            if prev is not None and (d - prev).days == 1:
+                run += 1
+            else:
+                run = 1
+            longest = max(longest, run)
+            prev = d
+        return longest
+
+    return {
+        "current_streak": _streak(combined_dates),
+        "longest_streak": _longest(combined_dates),
+        "jude_streak": _streak(husband_dates),
+        "wincyl_streak": _streak(wife_dates),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Monthly challenges
+# ---------------------------------------------------------------------------
+
+def get_monthly_challenges(month_rows: list[dict], prev_month_total: float, budgets: list[dict]) -> list[dict]:
+    """Define and evaluate monthly challenges."""
+    manual = [r for r in month_rows if not (r.get("description", "") or "").startswith("[Recurring]")]
+    jude_entries = [r for r in manual if r.get("added_by") == "husband"]
+    wincyl_entries = [r for r in manual if r.get("added_by") == "wife"]
+    month_total = sum(r["amount"] for r in month_rows)
+
+    # Challenge 1: Daily Logger
+    ch1_completed = len(jude_entries) > 0 and len(wincyl_entries) > 0
+    ch1_pct = 100.0 if ch1_completed else (50.0 if (len(jude_entries) > 0 or len(wincyl_entries) > 0) else 0.0)
+    ch1_detail = f"Jude: {len(jude_entries)} entries, Wincyl: {len(wincyl_entries)} entries"
+
+    # Challenge 2: Budget Keeper
+    cat_totals: dict = {}
+    for r in month_rows:
+        cat_totals[r["category"]] = cat_totals.get(r["category"], 0) + r["amount"]
+    over_budget = [b["category"] for b in budgets if cat_totals.get(b["category"], 0) > b["monthly_limit"]]
+    ch2_completed = len(budgets) > 0 and len(over_budget) == 0
+    if not budgets:
+        ch2_pct = 0.0
+        ch2_detail = "No budgets set yet"
+    elif over_budget:
+        ch2_pct = max(0.0, (len(budgets) - len(over_budget)) / len(budgets) * 100)
+        ch2_detail = f"Over budget: {', '.join(over_budget)}"
+    else:
+        ch2_pct = 100.0
+        ch2_detail = "All categories within budget! 🎉"
+
+    # Challenge 3: Teamwork
+    ch3_completed = len(jude_entries) >= 5 and len(wincyl_entries) >= 5
+    ch3_pct = min((len(jude_entries) + len(wincyl_entries)) / 10 * 100, 100.0)
+    ch3_detail = f"Jude: {len(jude_entries)}/5, Wincyl: {len(wincyl_entries)}/5"
+
+    # Challenge 4: Frugal Month
+    ch4_completed = prev_month_total > 0 and month_total < prev_month_total
+    if prev_month_total > 0 and month_total > 0:
+        ch4_pct = min(prev_month_total / month_total * 100, 100.0)
+    elif prev_month_total > 0 and month_total == 0:
+        ch4_pct = 100.0
+    else:
+        ch4_pct = 0.0
+    if prev_month_total > 0:
+        diff = prev_month_total - month_total
+        ch4_detail = (f"${abs(diff):,.2f} {'saved vs' if diff >= 0 else 'more than'} last month "
+                      f"(${month_total:,.2f} vs ${prev_month_total:,.2f})")
+    else:
+        ch4_detail = "No previous month data to compare"
+
+    # Challenge 5: Love Loggers
+    total_manual = len(manual)
+    ch5_pct = min(total_manual / 20 * 100, 100.0)
+    ch5_completed = total_manual >= 20
+    ch5_detail = f"{total_manual} / 20 combined manual entries"
+
+    return [
+        {"title": "Daily Logger", "description": "Both partners log at least 1 manual entry this month",
+         "emoji": "📝", "completed": ch1_completed, "progress_pct": ch1_pct, "detail": ch1_detail},
+        {"title": "Budget Keeper", "description": "All budgeted categories stay under their limit",
+         "emoji": "💰", "completed": ch2_completed, "progress_pct": ch2_pct, "detail": ch2_detail},
+        {"title": "Teamwork", "description": "Both partners log at least 5 manual entries each",
+         "emoji": "🤝", "completed": ch3_completed, "progress_pct": ch3_pct, "detail": ch3_detail},
+        {"title": "Frugal Month", "description": "Total spending is lower than the previous month",
+         "emoji": "🥗", "completed": ch4_completed, "progress_pct": ch4_pct, "detail": ch4_detail},
+        {"title": "Love Loggers", "description": "Combined manual entries reach 20 this month",
+         "emoji": "💕", "completed": ch5_completed, "progress_pct": ch5_pct, "detail": ch5_detail},
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Achievements
+# ---------------------------------------------------------------------------
+
+def get_achievements(all_rows: list[dict]) -> list[dict]:
+    """Evaluate achievement badges from all-time expense history."""
+    _empty = [
+        {"name": "First Entry", "emoji": "🎯", "description": "Logged first expense ever", "unlocked": False, "unlocked_date": None},
+        {"name": "Century Club", "emoji": "💯", "description": "Logged 100+ total expenses", "unlocked": False, "unlocked_date": None},
+        {"name": "Big Spender", "emoji": "💸", "description": "Single expense > $500", "unlocked": False, "unlocked_date": None},
+        {"name": "Penny Pincher", "emoji": "🪙", "description": "An expense < $1", "unlocked": False, "unlocked_date": None},
+        {"name": "Consistent Couple", "emoji": "📅", "description": "Both logged in same month for 3+ months", "unlocked": False, "unlocked_date": None},
+        {"name": "Food Lovers", "emoji": "🍔", "description": "Food category > $500 in a single month", "unlocked": False, "unlocked_date": None},
+        {"name": "Power Tracker", "emoji": "⚡", "description": "Logged 10+ expenses in a single day (combined)", "unlocked": False, "unlocked_date": None},
+        {"name": "Year Strong", "emoji": "🏆", "description": "Expenses spanning 12+ months", "unlocked": False, "unlocked_date": None},
+    ]
+    if not all_rows:
+        return _empty
+
+    def _d(r) -> str:
+        raw = r.get("date", "")
+        return raw[:10] if isinstance(raw, str) else str(raw)[:10]
+
+    sorted_rows = sorted(all_rows, key=_d)
+
+    # 1. First Entry
+    first_date = _d(sorted_rows[0]) if sorted_rows else None
+
+    # 2. Century Club
+    cent_unlocked = len(all_rows) >= 100
+    cent_date = _d(sorted_rows[99]) if cent_unlocked else None
+
+    # 3. Big Spender
+    big = [r for r in sorted_rows if r.get("amount", 0) > 500]
+    big_unlocked = bool(big)
+    big_date = _d(big[0]) if big_unlocked else None
+
+    # 4. Penny Pincher
+    penny = [r for r in sorted_rows if 0 < r.get("amount", 0) < 1]
+    penny_unlocked = bool(penny)
+    penny_date = _d(penny[0]) if penny_unlocked else None
+
+    # 5. Consistent Couple — both logged in same month for 3+ months
+    from collections import defaultdict
+    month_users: dict = defaultdict(set)
+    for r in all_rows:
+        ym = _d(r)[:7]
+        user = r.get("added_by", "")
+        if user in ("husband", "wife"):
+            month_users[ym].add(user)
+    both_months = sorted(m for m, u in month_users.items() if len(u) == 2)
+    consistent_unlocked = len(both_months) >= 3
+    consistent_date = (both_months[2] + "-01") if consistent_unlocked else None
+
+    # 6. Food Lovers — Food > $500 in single month
+    food_by_month: dict = defaultdict(float)
+    food_first_row: dict = {}
+    for r in sorted_rows:
+        if r.get("category") == "Food":
+            ym = _d(r)[:7]
+            food_by_month[ym] += r.get("amount", 0)
+            if ym not in food_first_row:
+                food_first_row[ym] = _d(r)
+    food_over = sorted([(m, t) for m, t in food_by_month.items() if t > 500])
+    food_unlocked = bool(food_over)
+    food_date = food_first_row.get(food_over[0][0]) if food_unlocked else None
+
+    # 7. Power Tracker — 10+ expenses in single day
+    day_counts: dict = defaultdict(int)
+    for r in sorted_rows:
+        day_counts[_d(r)] += 1
+    power_days = sorted(d for d, c in day_counts.items() if c >= 10)
+    power_unlocked = bool(power_days)
+    power_date = power_days[0] if power_unlocked else None
+
+    # 8. Year Strong — 12+ distinct months
+    all_months = set(_d(r)[:7] for r in all_rows)
+    year_strong_unlocked = len(all_months) >= 12
+    year_strong_date = (sorted(all_months)[11] + "-01") if year_strong_unlocked else None
+
+    return [
+        {"name": "First Entry", "emoji": "🎯", "description": "Logged first expense ever",
+         "unlocked": bool(sorted_rows), "unlocked_date": first_date},
+        {"name": "Century Club", "emoji": "💯", "description": "Logged 100+ total expenses",
+         "unlocked": cent_unlocked, "unlocked_date": cent_date},
+        {"name": "Big Spender", "emoji": "💸", "description": "Single expense > $500",
+         "unlocked": big_unlocked, "unlocked_date": big_date},
+        {"name": "Penny Pincher", "emoji": "🪙", "description": "An expense < $1",
+         "unlocked": penny_unlocked, "unlocked_date": penny_date},
+        {"name": "Consistent Couple", "emoji": "📅", "description": "Both logged in same month for 3+ months",
+         "unlocked": consistent_unlocked, "unlocked_date": consistent_date},
+        {"name": "Food Lovers", "emoji": "🍔", "description": "Food category > $500 in a single month",
+         "unlocked": food_unlocked, "unlocked_date": food_date},
+        {"name": "Power Tracker", "emoji": "⚡", "description": "Logged 10+ expenses in a single day (combined)",
+         "unlocked": power_unlocked, "unlocked_date": power_date},
+        {"name": "Year Strong", "emoji": "🏆", "description": "Expenses spanning 12+ months",
+         "unlocked": year_strong_unlocked, "unlocked_date": year_strong_date},
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Love History
+# ---------------------------------------------------------------------------
+
+def get_love_history(all_rows: list[dict]) -> list[dict]:
+    """Compute love points for each past month. Returns last 12 months, oldest first."""
+    if not all_rows:
+        return []
+
+    today = date.today()
+
+    # Build set of last 12 YYYY-MM strings
+    cutoff: set = set()
+    for i in range(12):
+        m = today.month - i
+        y = today.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        cutoff.add(f"{y:04d}-{m:02d}")
+
+    # Find which months we have data for
+    def _ym(r) -> str:
+        raw = r.get("date", "")
+        s = raw[:10] if isinstance(raw, str) else str(raw)[:10]
+        return s[:7]
+
+    months_in_data = set(_ym(r) for r in all_rows)
+    relevant = sorted(months_in_data & cutoff)
+
+    result = []
+    for ym in relevant:
+        y_val, m_val = int(ym[:4]), int(ym[5:7])
+        last_day = calendar.monthrange(y_val, m_val)[1]
+        m_start = f"{y_val:04d}-{m_val:02d}-01"
+        m_end = f"{y_val:04d}-{m_val:02d}-{last_day:02d}"
+
+        month_data = [
+            r for r in all_rows
+            if m_start <= (_ym(r) + "-01")[:10] <= m_end[:10]
+            # simpler: just filter by YYYY-MM prefix
+        ]
+        # Actually filter properly
+        month_data = [r for r in all_rows if _ym(r) == ym]
+
+        df_m = rows_to_dataframe(month_data)
+        lp = love_points(df_m, year=y_val, month=m_val)
+        result.append({
+            "month": date(y_val, m_val, 1).strftime("%b %Y"),
+            "points": lp["combined_points"],
+            "tier": lp["label"],
+            "emoji": lp["emoji"],
+        })
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Who spends more
+# ---------------------------------------------------------------------------
+
+def get_who_spends_more(df: pd.DataFrame) -> pd.DataFrame:
+    """Per category, show Jude vs Wincyl spending."""
+    if df.empty:
+        return pd.DataFrame(columns=["Category", "Jude", "Wincyl", "Leader"])
+
+    jude_totals = df[df["added_by"] == "husband"].groupby("category")["amount"].sum()
+    wincyl_totals = df[df["added_by"] == "wife"].groupby("category")["amount"].sum()
+
+    all_cats = sorted(df["category"].unique())
+    rows = []
+    for cat in all_cats:
+        j = round(float(jude_totals.get(cat, 0)), 2)
+        w = round(float(wincyl_totals.get(cat, 0)), 2)
+        leader = "Jude" if j > w else ("Wincyl" if w > j else "Tied")
+        rows.append({"Category": cat, "Jude": j, "Wincyl": w, "Leader": leader})
+
     return pd.DataFrame(rows)

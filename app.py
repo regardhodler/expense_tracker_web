@@ -10,20 +10,25 @@ import streamlit_authenticator as stauth
 
 from database import (
     init_db, add_expense, delete_expense, get_expenses_between, get_recent_expenses,
-    get_expense_by_id, update_expense,
+    get_expense_by_id, update_expense, get_tax_writeoffs,
     get_budgets, set_budget, get_monthly_category_totals,
     add_recurring_expense, get_recurring_expenses, deactivate_recurring_expense,
     update_recurring_expense, process_recurring_expenses,
+    get_savings_goals, add_savings_goal, update_savings_goal_progress,
+    complete_savings_goal, delete_savings_goal,
 )
 from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
     get_period_dates, category_summary, daily_totals_for_month,
     expenses_for_day, spending_projections, month_comparison,
-    love_points, LOVE_TIERS, canadian_comparison,
+    love_points, LOVE_TIERS, canadian_comparison, DISPLAY_NAMES,
+    get_streaks, get_monthly_challenges, get_achievements,
+    get_love_history, get_who_spends_more,
 )
 from visualization import (
     pie_chart, bar_chart, monthly_trend_chart, comparison_bar_chart,
-    canadian_comparison_chart,
+    canadian_comparison_chart, spending_heatmap, love_history_chart,
+    who_spends_more_chart, savings_goal_chart,
 )
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
 
@@ -46,6 +51,13 @@ def _cached_budgets() -> list[dict]:
 @st.cache_data(ttl=60)
 def _cached_monthly_category_totals(year: int, month: int) -> dict:
     return get_monthly_category_totals(year, month)
+
+
+@st.cache_data(ttl=300)
+def _cached_all_expenses() -> list[dict]:
+    """Fetch all expenses since 2020-01-01 for achievements/streaks/history."""
+    from datetime import date as _date
+    return get_expenses_between(_date(2020, 1, 1), _date.today())
 
 # ---------------------------------------------------------------------------
 # PWA support
@@ -111,6 +123,19 @@ def inject_romantic_css():
         }
         </style>
     """, unsafe_allow_html=True)
+
+
+def inject_dark_mode_css(dark_mode: bool):
+    """Inject light mode CSS overrides when dark_mode is False."""
+    if not dark_mode:
+        st.markdown("""
+            <style>
+            .stApp { background-color: #f8f9fa !important; color: #212529 !important; }
+            [data-testid="stSidebar"] { background-color: #e9ecef !important; }
+            [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li { color: #212529 !important; }
+            [data-testid="stMetricValue"] { color: #212529 !important; }
+            </style>
+        """, unsafe_allow_html=True)
 
 
 def _monthsary_banner():
@@ -335,6 +360,89 @@ def page_dashboard(username: str):
         unsafe_allow_html=True,
     )
 
+    # --- Streak badge + Forecast ---
+    all_rows_for_streaks = _cached_all_expenses()
+    streaks = get_streaks(all_rows_for_streaks)
+    cur_streak = streaks["current_streak"]
+    if cur_streak > 0:
+        streak_color = "#ff6600"
+        streak_html = f'🔥 <strong style="color:{streak_color}">{cur_streak} day streak!</strong> Keep it up!'
+    else:
+        streak_color = "#666"
+        streak_html = '😴 No active streak — log today to start one!'
+
+    fc_html = ""
+    if month_rows and prev_month_total > 0:
+        proj = spending_projections(month_rows, month_start, today)
+        pct_diff = (proj["projected_total"] - prev_month_total) / prev_month_total * 100
+        direction = "more" if pct_diff >= 0 else "less"
+        arrow = "📈" if pct_diff >= 0 else "📉"
+        fc_html = (f'{arrow} On track for <strong>${proj["projected_total"]:,.0f}</strong> this month '
+                   f'vs <strong>${prev_month_total:,.0f}</strong> last month — '
+                   f'<strong>{abs(pct_diff):.0f}% {direction}</strong>')
+
+    st.markdown(
+        f'<div style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap">'
+        f'<div style="background:#1a1a2e;border-radius:12px;padding:12px 18px;flex:1;min-width:180px;border-left:4px solid {streak_color}">'
+        f'<span style="color:#ccc;font-size:0.9em">{streak_html}</span></div>'
+        + (f'<div style="background:#1a1a2e;border-radius:12px;padding:12px 18px;flex:2;min-width:260px;border-left:4px solid #c44dff">'
+           f'<span style="color:#ccc;font-size:0.9em">{fc_html}</span></div>' if fc_html else "")
+        + f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    # --- Monthly Challenges ---
+    budgets_for_challenges = _cached_budgets()
+    challenges = get_monthly_challenges(month_rows, prev_month_total, budgets_for_challenges)
+    with st.expander("🎯 This Month's Challenges"):
+        ch_cols = st.columns(min(len(challenges), 3))
+        for i, ch in enumerate(challenges):
+            with ch_cols[i % len(ch_cols)]:
+                status_icon = "✅" if ch["completed"] else "⏳"
+                pct = ch["progress_pct"]
+                bar_color = "#2ecc71" if ch["completed"] else "linear-gradient(90deg,#ff6b9d,#c44dff)"
+                st.markdown(
+                    f'<div style="background:#1a1a2e;border-radius:10px;padding:12px;margin:4px 0;min-height:110px">'
+                    f'<div style="font-size:1.4em">{ch["emoji"]} {status_icon}</div>'
+                    f'<div style="font-weight:bold;color:#e0e0e0;margin:4px 0">{ch["title"]}</div>'
+                    f'<div style="color:#999;font-size:0.75em;margin-bottom:6px">{ch["description"]}</div>'
+                    f'<div style="background:#2a2a4a;border-radius:6px;height:8px;overflow:hidden;margin-bottom:4px">'
+                    f'<div style="background:{"#2ecc71" if ch["completed"] else "linear-gradient(90deg,#ff6b9d,#c44dff)"};'
+                    f'width:{pct:.1f}%;height:100%;border-radius:6px"></div></div>'
+                    f'<div style="color:#777;font-size:0.7em">{ch["detail"]}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+
+    # --- Achievements ---
+    achievements = get_achievements(all_rows_for_streaks)
+    with st.expander("🏆 Achievements"):
+        unlocked = [a for a in achievements if a["unlocked"]]
+        locked = [a for a in achievements if not a["unlocked"]]
+        if unlocked:
+            st.markdown(f"**{len(unlocked)} / {len(achievements)} unlocked**")
+        ach_cols = st.columns(min(len(achievements), 4))
+        for i, ach in enumerate(achievements):
+            with ach_cols[i % len(ach_cols)]:
+                opacity = "1" if ach["unlocked"] else "0.35"
+                border = "#c44dff" if ach["unlocked"] else "#333"
+                date_str = f"<br><span style='color:#888;font-size:0.65em'>Unlocked: {ach['unlocked_date']}</span>" if ach["unlocked_date"] else ""
+                st.markdown(
+                    f'<div style="background:#1a1a2e;border-radius:10px;padding:10px;margin:4px 0;'
+                    f'border:1px solid {border};opacity:{opacity};text-align:center">'
+                    f'<div style="font-size:1.8em">{ach["emoji"]}</div>'
+                    f'<div style="font-weight:bold;color:#e0e0e0;font-size:0.8em">{ach["name"]}</div>'
+                    f'<div style="color:#999;font-size:0.7em">{ach["description"]}{date_str}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+
+    # --- Love History ---
+    love_hist = get_love_history(all_rows_for_streaks)
+    if love_hist:
+        with st.expander("📈 Love History"):
+            st.plotly_chart(love_history_chart(love_hist), use_container_width=True)
+
     # Month-over-Month comparison
     if month_rows or prev_month_rows:
         with st.expander("Month-over-Month Details"):
@@ -350,9 +458,59 @@ def page_dashboard(username: str):
                     lambda x: f"+{x:.1f}%" if x >= 0 else f"{x:.1f}%"
                 )
                 st.dataframe(display_comp, use_container_width=True, hide_index=True)
-                st.plotly_chart(comparison_bar_chart(comp_df), use_container_width=True)
+                st.caption("💡 Click a category bar to see its transactions below")
+                _dash_bar_sel = st.plotly_chart(
+                    comparison_bar_chart(comp_df),
+                    use_container_width=True,
+                    on_select="rerun",
+                    selection_mode="points",
+                    key="dashboard_comparison_chart",
+                )
+                _dash_selected_cat = None
+                if _dash_bar_sel and _dash_bar_sel.selection and _dash_bar_sel.selection.get("points"):
+                    _dash_selected_cat = _dash_bar_sel.selection["points"][0].get("x")
+                if _dash_selected_cat:
+                    _cur_label = today.strftime("%B %Y")
+                    _prev_label = (today.replace(day=1) - pd.Timedelta(days=1)).strftime("%B %Y")
+                    st.markdown(f"### 📋 {_dash_selected_cat} transactions")
+                    _tab_cur, _tab_prev = st.tabs([f"Current ({_cur_label})", f"Previous ({_prev_label})"])
+                    with _tab_cur:
+                        _cur_cat = [r for r in month_rows if r["category"] == _dash_selected_cat]
+                        if _cur_cat:
+                            _cur_cat_df = pd.DataFrame(_cur_cat)[["date", "amount", "description", "added_by"]]
+                            _cur_cat_df.columns = ["Date", "Amount", "Description", "Added By"]
+                            _cur_cat_df = _cur_cat_df.sort_values("Date", ascending=False)
+                            _cur_cat_df["Amount"] = _cur_cat_df["Amount"].map("${:,.2f}".format)
+                            st.dataframe(_cur_cat_df, use_container_width=True, hide_index=True)
+                            st.caption(f"Total: **${sum(r['amount'] for r in _cur_cat):,.2f}** across {len(_cur_cat)} transaction(s)")
+                        else:
+                            st.info(f"No {_dash_selected_cat} transactions this month.")
+                    with _tab_prev:
+                        _prev_cat = [r for r in prev_month_rows if r["category"] == _dash_selected_cat]
+                        if _prev_cat:
+                            _prev_cat_df = pd.DataFrame(_prev_cat)[["date", "amount", "description", "added_by"]]
+                            _prev_cat_df.columns = ["Date", "Amount", "Description", "Added By"]
+                            _prev_cat_df = _prev_cat_df.sort_values("Date", ascending=False)
+                            _prev_cat_df["Amount"] = _prev_cat_df["Amount"].map("${:,.2f}".format)
+                            st.dataframe(_prev_cat_df, use_container_width=True, hide_index=True)
+                            st.caption(f"Total: **${sum(r['amount'] for r in _prev_cat):,.2f}** across {len(_prev_cat)} transaction(s)")
+                        else:
+                            st.info(f"No {_dash_selected_cat} transactions last month.")
             else:
                 st.info("No data to compare.")
+
+    # Spending heatmap
+    st.subheader("📅 Spending Heatmap")
+    month_df = rows_to_dataframe(month_rows)
+    st.plotly_chart(spending_heatmap(month_df, today.year, today.month), use_container_width=True)
+
+    # Who spends more?
+    if month_rows:
+        st.subheader("💰 Who Spends More This Month?")
+        wsm_df = get_who_spends_more(rows_to_dataframe(month_rows))
+        if not wsm_df.empty:
+            st.plotly_chart(who_spends_more_chart(wsm_df), use_container_width=True)
+            st.dataframe(wsm_df, use_container_width=True, hide_index=True)
 
     # Over-budget warnings
     budgets = _cached_budgets()
@@ -380,13 +538,6 @@ def page_dashboard(username: str):
     else:
         st.info("No expenses yet. Add your first one!")
 
-    # Monthly trend (YTD)
-    if ytd_rows:
-        st.subheader("Monthly Trend (YTD)")
-        df_ytd = rows_to_dataframe(ytd_rows)
-        trend = monthly_trend_chart(df_ytd)
-        if trend:
-            st.plotly_chart(trend, use_container_width=True)
 
 
 def page_add_expense(username: str):
@@ -409,6 +560,7 @@ def page_add_expense(username: str):
             description = st.text_input("Description (optional)", "", max_chars=MAX_DESCRIPTION_LENGTH)
 
         added_for = st.selectbox("Who is this for?", ["Jude", "Wincyl"], key="add_expense_for")
+        is_writeoff = st.checkbox("🧾 Tax Write-Off", value=False)
 
         submitted = st.form_submit_button("Add Expense", use_container_width=True)
 
@@ -433,7 +585,7 @@ def page_add_expense(username: str):
             else:
                 from analysis import DISPLAY_NAMES
                 added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
-                add_expense(exp_date, amount, category, description.strip(), added_by)
+                add_expense(exp_date, amount, category, description.strip(), added_by, is_writeoff)
                 st.success(f"Added ${amount:,.2f} for {category} on {exp_date}!")
                 st.session_state.pop("_confirm_duplicate", None)
 
@@ -640,7 +792,26 @@ def page_analysis(username: str):
     st.subheader("Pie Chart")
     st.plotly_chart(pie_chart(summary), use_container_width=True)
     st.subheader("Bar Chart")
-    st.plotly_chart(bar_chart(summary), use_container_width=True)
+    st.caption("💡 Click a category bar to see its transactions below")
+    _bar_sel = st.plotly_chart(
+        bar_chart(summary),
+        use_container_width=True,
+        on_select="rerun",
+        selection_mode="points",
+        key="analysis_bar_chart",
+    )
+    _selected_cat = None
+    if _bar_sel and _bar_sel.selection and _bar_sel.selection.get("points"):
+        _selected_cat = _bar_sel.selection["points"][0].get("x")
+    if _selected_cat:
+        st.markdown(f"### 📋 {_selected_cat} transactions ({start.strftime('%b %d')} – {end.strftime('%b %d, %Y')})")
+        _cat_df = df[df["category"] == _selected_cat].copy()
+        _cat_df = _cat_df.sort_values("date", ascending=False)
+        _cat_display = _cat_df[["date", "amount", "description", "added_by"]].copy()
+        _cat_display.columns = ["Date", "Amount", "Description", "Added By"]
+        _cat_display["Amount"] = _cat_display["Amount"].map("${:,.2f}".format)
+        st.dataframe(_cat_display, use_container_width=True, hide_index=True)
+        st.caption(f"Total: **${_cat_df['amount'].sum():,.2f}** across {len(_cat_df)} transaction(s)")
 
     # Monthly trend (if period spans multiple months)
     if (end - start).days > 31:
@@ -980,6 +1151,7 @@ def page_manage_expenses(username: str):
             e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
             e_description = st.text_input("Description", value=expense["description"] or "",
                                           max_chars=MAX_DESCRIPTION_LENGTH)
+            e_writeoff = st.checkbox("🧾 Tax Write-Off", value=bool(expense.get("is_tax_writeoff", 0)))
 
             col_save, col_cancel = st.columns(2)
             with col_save:
@@ -995,7 +1167,7 @@ def page_manage_expenses(username: str):
                 if not valid:
                     st.error(msg)
                 else:
-                    update_expense(editing_id, e_date, e_amount, e_category, e_description.strip())
+                    update_expense(editing_id, e_date, e_amount, e_category, e_description.strip(), e_writeoff)
                     st.session_state.pop("editing_expense_id", None)
                     st.success("Expense updated!")
                     st.rerun()
@@ -1005,39 +1177,187 @@ def page_manage_expenses(username: str):
         return  # Don't show the rest while editing
 
     # --- Expense list with edit/delete ---
-    st.caption("Select a date range to find expenses to edit or delete.")
+    # --- Tabs: Expense List | Tax Report ---
+    tab_list, tab_tax = st.tabs(["📋 Expense List", "🧾 Tax Report"])
 
-    col1, col2 = st.columns(2)
-    with col1:
-        start = st.date_input("From", value=date.today().replace(day=1), key="manage_start")
-    with col2:
-        end = st.date_input("To", value=date.today(), key="manage_end")
+    with tab_list:
+        st.caption("Select a date range to find expenses to edit or delete.")
 
-    rows = get_expenses_between(start, end)
-    if not rows:
-        st.info("No expenses in this range.")
-        return
+        col1, col2 = st.columns(2)
+        with col1:
+            start = st.date_input("From", value=date.today().replace(day=1), key="manage_start")
+        with col2:
+            end = st.date_input("To", value=date.today(), key="manage_end")
 
-    for row in rows:
-        col_info, col_edit, col_del = st.columns([5, 1, 1])
-        with col_info:
+        rows = get_expenses_between(start, end)
+        if not rows:
+            st.info("No expenses in this range.")
+        else:
+            for row in rows:
+                writeoff_badge = " 🧾" if row.get("is_tax_writeoff") else ""
+                col_info, col_edit, col_del = st.columns([5, 1, 1])
+                with col_info:
+                    st.markdown(
+                        f"**{row['date']}** | ${row['amount']:,.2f} | "
+                        f"{row['category']} | {row['description'] or '—'} "
+                        f"*(by {row['added_by']})*{writeoff_badge}"
+                    )
+                with col_edit:
+                    if st.button("Edit", key=f"edit_exp_{row['id']}"):
+                        st.session_state["editing_expense_id"] = row["id"]
+                        st.rerun()
+                with col_del:
+                    if st.button("Delete", key=f"del_exp_{row['id']}"):
+                        delete_expense(row["id"])
+                        st.success("Expense deleted!")
+                        st.rerun()
+
+    with tab_tax:
+        st.subheader("🧾 Tax Write-Offs")
+        st.caption("All expenses marked as tax write-offs.")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            tax_start = st.date_input("From", value=date(date.today().year, 1, 1), key="tax_start")
+        with col2:
+            tax_end = st.date_input("To", value=date.today(), key="tax_end")
+
+        tax_cat_filter = st.multiselect("Filter by Category", CATEGORIES, default=[], key="tax_cat_filter")
+
+        writeoffs = get_tax_writeoffs(tax_start, tax_end)
+        if tax_cat_filter:
+            writeoffs = [r for r in writeoffs if r["category"] in tax_cat_filter]
+
+        if not writeoffs:
+            st.info("No tax write-offs found for this period.")
+        else:
+            cat_totals: dict[str, float] = {}
+            for r in writeoffs:
+                cat_totals[r["category"]] = cat_totals.get(r["category"], 0) + r["amount"]
+            grand_total = sum(cat_totals.values())
+
             st.markdown(
-                f"**{row['date']}** | ${row['amount']:,.2f} | "
-                f"{row['category']} | {row['description'] or '—'} "
-                f"*(by {row['added_by']})*"
+                f"""<div style="background:#1a1a2e;border-radius:12px;padding:16px;margin:8px 0">
+                <span style="font-size:1.1rem;font-weight:700;color:#4ade80">
+                Total Write-Offs: ${grand_total:,.2f}
+                </span> &nbsp;·&nbsp;
+                <span style="color:#aaa">{len(writeoffs)} expense(s)</span>
+                </div>""",
+                unsafe_allow_html=True,
             )
-        with col_edit:
-            if st.button("Edit", key=f"edit_exp_{row['id']}"):
-                st.session_state["editing_expense_id"] = row["id"]
-                st.rerun()
-        with col_del:
-            if st.button("Delete", key=f"del_exp_{row['id']}"):
-                delete_expense(row["id"])
-                st.success("Expense deleted!")
-                st.rerun()
+
+            with st.expander("📊 By Category", expanded=True):
+                for cat, total in sorted(cat_totals.items(), key=lambda x: -x[1]):
+                    pct = (total / grand_total * 100) if grand_total else 0
+                    st.markdown(
+                        f"**{cat}** — ${total:,.2f} &nbsp;<span style='color:#aaa;font-size:0.85rem'>({pct:.0f}%)</span>",
+                        unsafe_allow_html=True,
+                    )
+
+            st.divider()
+            for row in writeoffs:
+                added_name = DISPLAY_NAMES.get(row["added_by"], row["added_by"])
+                st.markdown(
+                    f"🧾 **{row['date']}** | ${row['amount']:,.2f} | "
+                    f"{row['category']} | {row['description'] or '—'} *(by {added_name})*"
+                )
+
+            st.divider()
+            df_export = pd.DataFrame(writeoffs)[["date", "amount", "category", "description", "added_by"]]
+            df_export["added_by"] = df_export["added_by"].map(lambda x: DISPLAY_NAMES.get(x, x))
+            df_export.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+            csv_bytes = df_export.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Export as CSV",
+                data=csv_bytes,
+                file_name=f"tax_writeoffs_{tax_start}_{tax_end}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
 
 # ---------------------------------------------------------------------------
+def page_savings_goals(username: str):
+    st.header("🎯 Savings Goals")
+
+    EMOJI_OPTIONS = ["🎯", "🏠", "✈️", "🚗", "💍", "📱", "💻", "🎓", "🏖️", "🛍️", "💰", "🎁", "🏋️", "🌟", "❤️"]
+
+    # Add new goal form
+    with st.expander("➕ Add New Goal", expanded=False):
+        with st.form("add_goal_form", clear_on_submit=True):
+            g_name = st.text_input("Goal Name (e.g. Vacation Fund)", max_chars=80)
+            col1, col2 = st.columns(2)
+            with col1:
+                g_target = st.number_input("Target Amount ($)", min_value=1.0, max_value=1_000_000.0, step=100.0, format="%.2f")
+            with col2:
+                g_emoji = st.selectbox("Emoji", EMOJI_OPTIONS)
+            g_category = st.selectbox("Category (optional)", ["None"] + CATEGORIES)
+            if st.form_submit_button("Add Goal", use_container_width=True):
+                if not g_name.strip():
+                    st.error("Goal name is required.")
+                else:
+                    cat_val = None if g_category == "None" else g_category
+                    add_savings_goal(g_name.strip(), g_target, cat_val, g_emoji, username)
+                    st.success(f"Goal '{g_name.strip()}' added!")
+                    st.rerun()
+
+    goals = get_savings_goals()
+
+    if not goals:
+        st.info("No savings goals yet. Add your first one above!")
+        return
+
+    # Chart
+    st.plotly_chart(savings_goal_chart(goals), use_container_width=True)
+
+    # Goal list
+    st.subheader("Your Goals")
+    for g in goals:
+        pct = min(g["current_amount"] / g["target_amount"] * 100, 100.0) if g["target_amount"] > 0 else 0
+        is_complete = bool(g["completed"])
+        remaining = max(g["target_amount"] - g["current_amount"], 0)
+
+        with st.container(border=True):
+            top_col, status_col = st.columns([5, 1])
+            with top_col:
+                st.markdown(
+                    f"**{g['emoji']} {g['name']}**"
+                    + (f" — {g['category']}" if g.get("category") else "")
+                    + (" ✅ *Completed!*" if is_complete else "")
+                )
+                st.progress(pct / 100, text=f"${g['current_amount']:,.2f} / ${g['target_amount']:,.2f} ({pct:.0f}%)")
+                if not is_complete:
+                    st.caption(f"${remaining:,.2f} left to reach your goal")
+            with status_col:
+                if is_complete:
+                    st.markdown("✅")
+
+            if not is_complete:
+                act_col1, act_col2, act_col3 = st.columns([3, 1, 1])
+                with act_col1:
+                    add_amount = st.number_input(
+                        "Add progress ($)", min_value=0.01, max_value=float(g["target_amount"]),
+                        step=10.0, format="%.2f", key=f"progress_{g['id']}",
+                    )
+                with act_col2:
+                    if st.button("Save", key=f"save_{g['id']}", use_container_width=True):
+                        new_total = round(g["current_amount"] + add_amount, 2)
+                        update_savings_goal_progress(g["id"], new_total)
+                        st.success(f"+${add_amount:,.2f} added!")
+                        st.rerun()
+                with act_col3:
+                    if st.button("Complete", key=f"complete_{g['id']}", use_container_width=True):
+                        complete_savings_goal(g["id"])
+                        st.success("Goal completed! 🎉")
+                        st.rerun()
+
+            del_col, _ = st.columns([1, 5])
+            with del_col:
+                if st.button("🗑️ Delete", key=f"delete_{g['id']}"):
+                    delete_savings_goal(g["id"])
+                    st.rerun()
+
+
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1067,10 +1387,13 @@ def main():
         st.sidebar.markdown("💕 **Happy Monthsary!** 💕")
     authenticator.logout("Logout", "sidebar")
 
+    dark_mode = st.sidebar.checkbox("🌙 Dark Mode", value=True, key="dark_mode")
+    inject_dark_mode_css(dark_mode)
+
     page = st.sidebar.radio(
         "Navigate",
         ["Dashboard", "Add Expense", "Monthly View", "Analysis",
-         "Search", "Budgets", "Recurring Expense", "Manage Expenses"],
+         "Search", "Budgets", "Recurring Expense", "Manage Expenses", "Savings Goals"],
     )
 
     pages = {
@@ -1082,6 +1405,7 @@ def main():
         "Budgets": page_budgets,
         "Recurring Expense": page_recurring,
         "Manage Expenses": page_manage_expenses,
+        "Savings Goals": page_savings_goals,
     }
     pages[page](username)
 

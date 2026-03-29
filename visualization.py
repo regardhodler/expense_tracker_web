@@ -122,3 +122,221 @@ def canadian_comparison_chart(comp_df: pd.DataFrame):
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     return fig
+
+
+def spending_heatmap(df: pd.DataFrame, year: int, month: int) -> go.Figure:
+    """GitHub-style calendar heatmap for a single month (Mon-Sun columns, weeks as rows)."""
+    import calendar as _cal
+
+    if not df.empty:
+        mask = (df["date"].dt.year == year) & (df["date"].dt.month == month)
+        daily = df[mask].groupby(df[mask]["date"].dt.day)["amount"].sum().to_dict()
+    else:
+        daily = {}
+
+    cal_obj = _cal.Calendar(firstweekday=0)  # Monday first
+    weeks = cal_obj.monthdayscalendar(year, month)
+    day_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    z, text_vals = [], []
+    for week in weeks:
+        row_z, row_t = [], []
+        for day in week:
+            if day == 0:
+                row_z.append(None)
+                row_t.append("")
+            else:
+                amt = daily.get(day, 0)
+                row_z.append(amt if amt > 0 else 0)
+                row_t.append(f"<b>Day {day}</b><br>${amt:,.2f}" if amt > 0 else f"<b>Day {day}</b><br>$0.00")
+        z.append(row_z)
+        text_vals.append(row_t)
+
+    colorscale = [
+        [0.0, "#1e1e2e"],
+        [0.001, "#2d1b3d"],
+        [0.3, "#9b3dc8"],
+        [0.6, "#c44dff"],
+        [1.0, "#ff6b9d"],
+    ]
+
+    fig = go.Figure(data=go.Heatmap(
+        z=z,
+        x=day_labels,
+        text=text_vals,
+        hoverinfo="text",
+        colorscale=colorscale,
+        showscale=True,
+        colorbar=dict(title="$", tickprefix="$"),
+        zmin=0,
+        xgap=4,
+        ygap=4,
+    ))
+
+    month_name = _cal.month_name[month]
+    fig.update_layout(
+        title=f"📅 {month_name} {year} — Daily Spending",
+        height=max(200, 80 + len(weeks) * 55),
+        margin=dict(t=45, b=20, l=20, r=80),
+        yaxis=dict(
+            tickmode="array",
+            tickvals=list(range(len(weeks))),
+            ticktext=[f"Wk {i + 1}" for i in range(len(weeks))],
+            showgrid=False,
+            autorange="reversed",
+        ),
+        xaxis=dict(showgrid=False),
+        plot_bgcolor="#0e1117",
+        paper_bgcolor="#0e1117",
+        font=dict(color="#e0e0e0"),
+    )
+    return fig
+
+
+def love_history_chart(history: list[dict]) -> go.Figure:
+    """Line chart of combined love points over past months with tier reference lines."""
+    if not history:
+        return go.Figure()
+
+    months = [h["month"] for h in history]
+    points = [h["points"] for h in history]
+    emojis = [h["emoji"] for h in history]
+
+    tier_thresholds = [
+        (3, "🥰 Sweet"), (6, "😍 Crushing"), (9, "💕 Lovey Dovey"),
+        (12, "🔥 Madly In Love"), (15, "💘 On Fire"),
+        (18, "🫂 Inseparable"), (21, "👑 Power Couple"), (25, "💪 Soulmates"),
+    ]
+
+    fig = go.Figure()
+
+    max_pts = max(points) if points else 10
+    for threshold, label in tier_thresholds:
+        if threshold <= max_pts + 6:
+            fig.add_hline(
+                y=threshold, line_dash="dot", line_color="#444",
+                annotation_text=label, annotation_position="right",
+                annotation_font_size=9, annotation_font_color="#888",
+            )
+
+    n = len(points)
+    marker_colors = [
+        f"rgb({int(255 - i / max(n - 1, 1) * (255 - 196))},{int(107 + i / max(n - 1, 1) * (68 - 107))},{int(157 + i / max(n - 1, 1) * (255 - 157))})"
+        for i in range(n)
+    ]
+
+    fig.add_trace(go.Scatter(
+        x=months,
+        y=points,
+        mode="lines+markers+text",
+        text=[f"{e} {p:.1f}" for e, p in zip(emojis, points)],
+        textposition="top center",
+        textfont=dict(size=11),
+        line=dict(color="#ff6b9d", width=3),
+        marker=dict(size=11, color=marker_colors, line=dict(color="#fff", width=1)),
+        name="Love Points",
+        hovertemplate="%{x}: <b>%{y:.1f} pts</b><extra></extra>",
+    ))
+
+    fig.update_layout(
+        title="📈 Love Points History",
+        xaxis_title="Month",
+        yaxis_title="Combined Love Points",
+        height=380,
+        margin=dict(t=45, b=30, l=30, r=100),
+        plot_bgcolor="#0e1117",
+        paper_bgcolor="#0e1117",
+        font=dict(color="#e0e0e0"),
+        xaxis=dict(gridcolor="#2a2a4a"),
+        yaxis=dict(gridcolor="#2a2a4a", rangemode="tozero"),
+    )
+    return fig
+
+
+def who_spends_more_chart(df: pd.DataFrame) -> go.Figure:
+    """Grouped bar chart: Jude (blue) vs Wincyl (pink) per category."""
+    if df.empty:
+        return go.Figure()
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        name="💙 Jude",
+        x=df["Category"],
+        y=df["Jude"],
+        marker_color="#4a8cff",
+        text=df["Jude"].map("${:,.0f}".format),
+        textposition="outside",
+    ))
+    fig.add_trace(go.Bar(
+        name="💗 Wincyl",
+        x=df["Category"],
+        y=df["Wincyl"],
+        marker_color="#ff6b9d",
+        text=df["Wincyl"].map("${:,.0f}".format),
+        textposition="outside",
+    ))
+    fig.update_layout(
+        barmode="group",
+        title="💰 Who Spends More Per Category",
+        height=420,
+        margin=dict(t=45, b=20, l=20, r=20),
+        yaxis_title="Amount ($)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        plot_bgcolor="#0e1117",
+        paper_bgcolor="#0e1117",
+        font=dict(color="#e0e0e0"),
+        xaxis=dict(gridcolor="#2a2a4a"),
+        yaxis=dict(gridcolor="#2a2a4a"),
+    )
+    return fig
+
+
+def savings_goal_chart(goals: list[dict]) -> go.Figure:
+    """Horizontal bar chart showing progress for each savings goal."""
+    if not goals:
+        return go.Figure()
+
+    names = [f"{g['emoji']} {g['name']}" for g in goals]
+    current = [g["current_amount"] for g in goals]
+    target = [g["target_amount"] for g in goals]
+    bar_colors = ["#2ecc71" if g["completed"] else "#ff9800" for g in goals]
+
+    labels = []
+    for g in goals:
+        if g["target_amount"] > 0:
+            pct = min(g["current_amount"] / g["target_amount"] * 100, 100.0)
+            labels.append(f"${g['current_amount']:,.0f} / ${g['target_amount']:,.0f} ({pct:.0f}%)")
+        else:
+            labels.append(f"${g['current_amount']:,.0f}")
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        y=names, x=target, orientation="h",
+        marker_color="rgba(255,255,255,0.08)",
+        marker_line=dict(color="rgba(255,255,255,0.3)", width=1),
+        name="Target", showlegend=True,
+        hovertemplate="Target: $%{x:,.0f}<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        y=names, x=current, orientation="h",
+        marker_color=bar_colors,
+        text=labels,
+        textposition="outside",
+        name="Saved", showlegend=True,
+        hovertemplate="Saved: $%{x:,.0f}<extra></extra>",
+    ))
+
+    fig.update_layout(
+        barmode="overlay",
+        title="🎯 Savings Goals Progress",
+        height=max(200, 80 + len(goals) * 55),
+        margin=dict(t=45, b=20, l=20, r=140),
+        xaxis_title="Amount ($)",
+        xaxis=dict(tickprefix="$", gridcolor="#2a2a4a"),
+        yaxis=dict(gridcolor="#2a2a4a"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        plot_bgcolor="#0e1117",
+        paper_bgcolor="#0e1117",
+        font=dict(color="#e0e0e0"),
+    )
+    return fig
