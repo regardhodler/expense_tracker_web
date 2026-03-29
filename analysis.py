@@ -225,6 +225,7 @@ LOVE_MESSAGES = {
         "This couple has more action than a Netflix series. And better chemistry.",
         "At 25+ pts Jude is basically a full-time job with very, very good benefits.",
         "Wincyl out here collecting points AND other things. We see you. 😮‍💨",
+        "Wincyl's throwing a party with the boys tonight. Jude better keep earning those points. 🎉👀",
     ],
 }
 
