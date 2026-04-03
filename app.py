@@ -461,14 +461,8 @@ def page_dashboard(username: str):
             last_dn_date = date.fromisoformat(last_dn["night_date"])
             days_since = (today - last_dn_date).days
 
-            # Expenses on date nights
-            dn_expense_total = 0.0
-            all_dn_expense_rows = get_expenses_between(year_start_dn, today)
-            dn_date_set = {dn["night_date"] for dn in ytd_dates}
-            for r in all_dn_expense_rows:
-                r_date = r["date"] if isinstance(r["date"], str) else r["date"].isoformat()
-                if r_date[:10] in dn_date_set:
-                    dn_expense_total += r["amount"]
+            # Expenses on date nights — only the tagged expense amount
+            dn_expense_total = sum(dn.get("expense_amount") or 0.0 for dn in ytd_dates)
 
             sc1, sc2, sc3 = st.columns(3)
             sc1.metric("💕 Dates this year", len(ytd_dates))
@@ -694,11 +688,11 @@ def page_add_expense(username: str):
                 add_expense(exp_date, amount, category, description.strip(), added_by, is_writeoff)
                 st.success(f"Added ${amount:,.2f} for {category} on {exp_date}!")
                 st.session_state.pop("_confirm_duplicate", None)
-                st.session_state["_date_night_pending"] = exp_date
+                st.session_state["_date_night_pending"] = (exp_date, amount)
 
     # --- Date Night Tagging (outside form so it survives rerun) ---
     if "_date_night_pending" in st.session_state:
-        pending_date = st.session_state["_date_night_pending"]
+        pending_date, pending_amount = st.session_state["_date_night_pending"]
         st.markdown(
             '<div style="background:linear-gradient(135deg,#3d1a4f,#6b1a3a);'
             'border-radius:14px;padding:18px 22px;margin:12px 0;border:1px solid #ff6b9d">'
@@ -725,7 +719,7 @@ def page_add_expense(username: str):
         with dn_col3:
             st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
             if st.button("💕 Mark it!", use_container_width=True, key="_dn_confirm"):
-                add_date_night(pending_date, dn_where, dn_how)
+                add_date_night(pending_date, dn_where, dn_how, pending_amount)
                 st.session_state.pop("_date_night_pending", None)
                 st.balloons()
                 st.success(f"💕 {pending_date.strftime('%B %d')} is now a date night! 🌹")

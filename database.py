@@ -149,9 +149,15 @@ def init_db():
             night_date TEXT NOT NULL UNIQUE,
             where_text TEXT,
             how_text TEXT,
+            expense_amount REAL DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now'))
         )
     """)
+    # Migration: add expense_amount to existing rows
+    try:
+        conn.execute("ALTER TABLE date_nights ADD COLUMN expense_amount REAL DEFAULT 0")
+    except Exception:
+        pass  # column already exists
 
     _sync_write(conn)
 
@@ -523,17 +529,17 @@ def delete_savings_goal(goal_id: int):
 # Date Nights CRUD
 # ---------------------------------------------------------------------------
 
-_DATE_NIGHT_COLUMNS = ["id", "night_date", "where_text", "how_text", "created_at"]
+_DATE_NIGHT_COLUMNS = ["id", "night_date", "where_text", "how_text", "expense_amount", "created_at"]
 
 
-def add_date_night(night_date: date, where_text: str, how_text: str):
+def add_date_night(night_date: date, where_text: str, how_text: str, expense_amount: float = 0.0):
     """Record a date night. Upserts so re-tagging the same date updates it."""
     conn = get_connection()
     conn.execute(
-        """INSERT INTO date_nights (night_date, where_text, how_text)
-           VALUES (?, ?, ?)
-           ON CONFLICT(night_date) DO UPDATE SET where_text=excluded.where_text, how_text=excluded.how_text""",
-        (night_date.isoformat(), where_text.strip(), how_text.strip()),
+        """INSERT INTO date_nights (night_date, where_text, how_text, expense_amount)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(night_date) DO UPDATE SET where_text=excluded.where_text, how_text=excluded.how_text, expense_amount=excluded.expense_amount""",
+        (night_date.isoformat(), where_text.strip(), how_text.strip(), round(expense_amount, 2)),
     )
     _sync_write(conn)
 
