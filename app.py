@@ -16,6 +16,7 @@ from database import (
     update_recurring_expense, process_recurring_expenses,
     get_savings_goals, add_savings_goal, update_savings_goal_progress,
     complete_savings_goal, delete_savings_goal,
+    add_date_night, get_date_nights, get_date_night_dates, delete_date_night,
 )
 from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
@@ -450,6 +451,85 @@ def page_dashboard(username: str):
         with st.expander("📈 Love History"):
             st.plotly_chart(love_history_chart(love_hist), use_container_width=True)
 
+    # --- Our Story This Year ---
+    year_start_dn = date(today.year, 1, 1)
+    ytd_dates = get_date_nights(year_start_dn, today)
+    if ytd_dates:
+        with st.expander(f"💌 Our Story This Year — {len(ytd_dates)} date{'s' if len(ytd_dates) != 1 else ''}", expanded=True):
+            # Summary stats row
+            last_dn = ytd_dates[0]  # newest first
+            last_dn_date = date.fromisoformat(last_dn["night_date"])
+            days_since = (today - last_dn_date).days
+
+            # Expenses on date nights
+            dn_expense_total = 0.0
+            all_dn_expense_rows = get_expenses_between(year_start_dn, today)
+            dn_date_set = {dn["night_date"] for dn in ytd_dates}
+            for r in all_dn_expense_rows:
+                r_date = r["date"] if isinstance(r["date"], str) else r["date"].isoformat()
+                if r_date[:10] in dn_date_set:
+                    dn_expense_total += r["amount"]
+
+            sc1, sc2, sc3 = st.columns(3)
+            sc1.metric("💕 Dates this year", len(ytd_dates))
+            sc2.metric("💸 Invested in us", f"${dn_expense_total:,.2f}")
+            if days_since == 0:
+                sc3.metric("🌹 Last date", "Today!")
+            elif days_since == 1:
+                sc3.metric("🌹 Last date", "Yesterday")
+            else:
+                sc3.metric("🌹 Last date", f"{days_since}d ago")
+
+            # Timeline
+            st.markdown("---")
+            VIBE_EMOJI = {
+                "Romantic dinner": "🍷",
+                "Chill & cozy": "🛋️",
+                "Fun & adventurous": "🎉",
+                "Spontaneous": "⚡",
+                "Special occasion": "🎂",
+                "Just us, no plans": "🌙",
+                "First of its kind": "🌟",
+            }
+            WHERE_EMOJI = {
+                "Restaurant": "🍽️",
+                "Movie / Theatre": "🎬",
+                "Home date night": "🏠",
+                "Cafe / Coffee shop": "☕",
+                "Park / Walk": "🌿",
+                "Shopping together": "🛍️",
+                "Concert / Event": "🎵",
+                "Other": "📍",
+            }
+            for dn in ytd_dates:
+                dn_d = date.fromisoformat(dn["night_date"])
+                w_emoji = WHERE_EMOJI.get(dn["where_text"], "📍")
+                v_emoji = VIBE_EMOJI.get(dn["how_text"], "💕")
+                st.markdown(
+                    f'<div style="display:flex;align-items:center;gap:14px;'
+                    f'padding:10px 14px;margin:4px 0;border-radius:10px;'
+                    f'background:linear-gradient(90deg,#2a0d1f,#1a0a12);border-left:3px solid #ff6b9d">'
+                    f'<div style="min-width:70px;color:#ff9fd2;font-size:0.85em;font-weight:bold">'
+                    f'{dn_d.strftime("%b %d")}</div>'
+                    f'<div style="font-size:1.4em">{w_emoji}</div>'
+                    f'<div style="flex:1">'
+                    f'<span style="color:#ffe0f0;font-size:0.95em">{dn["where_text"]}</span>'
+                    f'</div>'
+                    f'<div style="font-size:1.2em">{v_emoji}</div>'
+                    f'<div style="color:#ccc;font-size:0.82em;font-style:italic">{dn["how_text"]}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+    else:
+        with st.expander("💌 Our Story This Year"):
+            st.markdown(
+                '<div style="text-align:center;padding:28px;color:#888;font-size:0.95em">'
+                '💕 No date nights recorded yet this year.<br>'
+                '<span style="font-size:0.85em">Next time you add an expense, tap <strong>💕 Mark it!</strong> to log your date.</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
     # Month-over-Month comparison
     if month_rows or prev_month_rows:
         with st.expander("Month-over-Month Details"):
@@ -614,6 +694,45 @@ def page_add_expense(username: str):
                 add_expense(exp_date, amount, category, description.strip(), added_by, is_writeoff)
                 st.success(f"Added ${amount:,.2f} for {category} on {exp_date}!")
                 st.session_state.pop("_confirm_duplicate", None)
+                st.session_state["_date_night_pending"] = exp_date
+
+    # --- Date Night Tagging (outside form so it survives rerun) ---
+    if "_date_night_pending" in st.session_state:
+        pending_date = st.session_state["_date_night_pending"]
+        st.markdown(
+            '<div style="background:linear-gradient(135deg,#3d1a4f,#6b1a3a);'
+            'border-radius:14px;padding:18px 22px;margin:12px 0;border:1px solid #ff6b9d">'
+            '<span style="font-size:1.3em">💕</span> '
+            '<strong style="color:#ff9fd2;font-size:1.05em">Was this a date night with Jude & Wincyl?</strong>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        dn_col1, dn_col2, dn_col3 = st.columns([2, 2, 1])
+        with dn_col1:
+            dn_where = st.selectbox(
+                "📍 Where?",
+                ["Restaurant", "Movie / Theatre", "Home date night", "Cafe / Coffee shop",
+                 "Park / Walk", "Shopping together", "Concert / Event", "Other"],
+                key="_dn_where",
+            )
+        with dn_col2:
+            dn_how = st.selectbox(
+                "✨ Vibe?",
+                ["Romantic dinner", "Chill & cozy", "Fun & adventurous", "Spontaneous",
+                 "Special occasion", "Just us, no plans", "First of its kind"],
+                key="_dn_how",
+            )
+        with dn_col3:
+            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+            if st.button("💕 Mark it!", use_container_width=True, key="_dn_confirm"):
+                add_date_night(pending_date, dn_where, dn_how)
+                st.session_state.pop("_date_night_pending", None)
+                st.balloons()
+                st.success(f"💕 {pending_date.strftime('%B %d')} is now a date night! 🌹")
+                st.rerun()
+        if st.button("Skip", key="_dn_skip", type="secondary"):
+            st.session_state.pop("_date_night_pending", None)
+            st.rerun()
 
 
 def page_monthly_view(username: str):
@@ -650,9 +769,12 @@ def page_monthly_view(username: str):
     cal = calendar.Calendar(firstweekday=6)  # Sunday first
     weeks = cal.monthdayscalendar(year, month)
 
+    date_night_days = get_date_night_dates(year, month)
+
     TH_STYLE = "background:#1a1a2e;color:#ccc;padding:6px;text-align:center;border:1px solid #333;font-size:0.85em"
     TD_STYLE = "border:1px solid #333;vertical-align:top;padding:4px 6px;height:80px;font-size:0.8em;background:#0e1117"
     TD_TODAY = "border:2px solid #4a8cff;vertical-align:top;padding:4px 6px;height:80px;font-size:0.8em;background:#1a2744"
+    TD_DATE_NIGHT = "border:2px solid #ff6b9d;vertical-align:top;padding:4px 6px;height:80px;font-size:0.8em;background:#2a0d1f"
     TD_EMPTY = "border:1px solid #333;vertical-align:top;padding:4px 6px;height:80px;font-size:0.8em;background:#0a0a12"
 
     html = '<table style="width:100%;border-collapse:collapse;table-layout:fixed"><tr>'
@@ -669,11 +791,18 @@ def page_monthly_view(username: str):
             else:
                 current_date = date(year, month, day)
                 is_today = current_date == today
-                style = TD_TODAY if is_today else TD_STYLE
+                is_date_night = day in date_night_days
+                if is_today:
+                    style = TD_TODAY
+                elif is_date_night:
+                    style = TD_DATE_NIGHT
+                else:
+                    style = TD_STYLE
                 day_expenses = expenses_for_day(df, current_date)
 
                 html += f'<td style="{style}">'
-                html += f'<div style="font-weight:bold;color:#e0e0e0;margin-bottom:3px;font-size:0.95em">{day}</div>'
+                day_label = f'{day} 💕' if is_date_night else str(day)
+                html += f'<div style="font-weight:bold;color:#e0e0e0;margin-bottom:3px;font-size:0.95em">{day_label}</div>'
 
                 if not day_expenses.empty:
                     for _, exp in day_expenses.iterrows():
@@ -701,6 +830,11 @@ def page_monthly_view(username: str):
         html += "</tr>"
 
     html += "</table>"
+    if date_night_days:
+        st.markdown(
+            '<p style="color:#ff9fd2;font-size:0.8em;margin-top:6px">💕 Pink glow = date night</p>',
+            unsafe_allow_html=True,
+        )
     st.markdown(html, unsafe_allow_html=True)
 
     # Day details selector

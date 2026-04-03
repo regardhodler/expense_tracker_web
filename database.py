@@ -142,6 +142,16 @@ def init_db():
         )
     """)
 
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS date_nights (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            night_date TEXT NOT NULL UNIQUE,
+            where_text TEXT,
+            how_text TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+
     _sync_write(conn)
 
 
@@ -505,4 +515,58 @@ def complete_savings_goal(goal_id: int):
 def delete_savings_goal(goal_id: int):
     conn = get_connection()
     conn.execute("DELETE FROM savings_goals WHERE id = ?", (goal_id,))
+    _sync_write(conn)
+
+
+# ---------------------------------------------------------------------------
+# Date Nights CRUD
+# ---------------------------------------------------------------------------
+
+_DATE_NIGHT_COLUMNS = ["id", "night_date", "where_text", "how_text", "created_at"]
+
+
+def add_date_night(night_date: date, where_text: str, how_text: str):
+    """Record a date night. Upserts so re-tagging the same date updates it."""
+    conn = get_connection()
+    conn.execute(
+        """INSERT INTO date_nights (night_date, where_text, how_text)
+           VALUES (?, ?, ?)
+           ON CONFLICT(night_date) DO UPDATE SET where_text=excluded.where_text, how_text=excluded.how_text""",
+        (night_date.isoformat(), where_text.strip(), how_text.strip()),
+    )
+    _sync_write(conn)
+
+
+def get_date_nights(start_date: date | None = None, end_date: date | None = None) -> list[dict]:
+    """Return date nights ordered newest first, optionally filtered by date range."""
+    conn = get_connection()
+    _sync_read(conn)
+    if start_date and end_date:
+        rows = conn.execute(
+            f"SELECT {', '.join(_DATE_NIGHT_COLUMNS)} FROM date_nights "
+            "WHERE night_date >= ? AND night_date <= ? ORDER BY night_date DESC",
+            (start_date.isoformat(), end_date.isoformat()),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            f"SELECT {', '.join(_DATE_NIGHT_COLUMNS)} FROM date_nights ORDER BY night_date DESC"
+        ).fetchall()
+    return [dict(zip(_DATE_NIGHT_COLUMNS, r)) for r in rows]
+
+
+def get_date_night_dates(year: int, month: int) -> set[int]:
+    """Return the set of day-numbers that are marked as date nights for a given month."""
+    conn = get_connection()
+    _sync_read(conn)
+    month_str = f"{year}-{month:02d}"
+    rows = conn.execute(
+        "SELECT night_date FROM date_nights WHERE night_date LIKE ?",
+        (f"{month_str}-%",),
+    ).fetchall()
+    return {int(r[0].split("-")[2]) for r in rows}
+
+
+def delete_date_night(night_date: date):
+    conn = get_connection()
+    conn.execute("DELETE FROM date_nights WHERE night_date = ?", (night_date.isoformat(),))
     _sync_write(conn)
