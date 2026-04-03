@@ -95,7 +95,7 @@ def monthly_trend_chart(df: pd.DataFrame):
 
 
 
-def yearly_mom_chart(monthly_totals: dict, year: int, prev_year_totals: dict | None = None) -> go.Figure:
+def yearly_mom_chart(monthly_totals: dict, year: int, prev_year_totals=None) -> go.Figure:
     """Bar chart of Jan–Dec spending. Green = month-over-month decrease, pink = increase.
     Optional prior year shown as a dotted line overlay."""
     import calendar as _cal
