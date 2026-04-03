@@ -274,6 +274,12 @@ def set_budget(category: str, monthly_limit: float, updated_by: str, notes: str 
     _sync_write(conn)
 
 
+def delete_budget(category: str):
+    conn = get_connection()
+    conn.execute("DELETE FROM budgets WHERE category = ?", (category,))
+    _sync_write(conn)
+
+
 def get_monthly_category_totals(year: int, month: int) -> dict[str, float]:
     """Return {category: total_spent} for a given month via SQL aggregation."""
     conn = get_connection()
