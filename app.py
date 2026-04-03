@@ -1034,8 +1034,9 @@ def page_budgets(username: str):
     with st.form("budget_form"):
         category = st.selectbox("Category", CATEGORIES)
         limit = st.number_input("Monthly Limit ($)", min_value=0.01, max_value=MAX_AMOUNT, step=10.0, format="%.2f")
+        notes = st.text_area("Comments (optional)", placeholder="e.g. Includes groceries and dining out", max_chars=300)
         if st.form_submit_button("Set Budget", use_container_width=True):
-            set_budget(category, limit, username)
+            set_budget(category, limit, username, notes)
             st.success(f"Budget for {category} set to ${limit:,.2f}")
 
     # Show current budgets with progress
@@ -1065,6 +1066,8 @@ def page_budgets(username: str):
                 st.error(f"Over by ${spent - limit_val:,.2f}")
             else:
                 st.caption(f"${limit_val - spent:,.2f} left")
+        if b.get("notes"):
+            st.caption(f"💬 {b['notes']}")
 
 
 def page_recurring(username: str):

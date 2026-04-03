@@ -94,6 +94,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             category TEXT NOT NULL UNIQUE,
             monthly_limit REAL NOT NULL,
+            notes TEXT DEFAULT '',
             updated_by TEXT DEFAULT 'unknown',
             updated_at TEXT DEFAULT (datetime('now'))
         )
@@ -246,22 +247,29 @@ def get_tax_writeoffs(start_date: date, end_date: date) -> list[dict]:
 def get_budgets() -> list[dict]:
     conn = get_connection()
     _sync_read(conn)
+    # Add notes column if it doesn't exist (migration for existing DBs)
+    try:
+        conn.execute("ALTER TABLE budgets ADD COLUMN notes TEXT DEFAULT ''")
+        _sync_write(conn)
+    except Exception:
+        pass
     rows = conn.execute(
-        "SELECT category, monthly_limit, updated_by, updated_at FROM budgets ORDER BY category"
+        "SELECT category, monthly_limit, notes, updated_by, updated_at FROM budgets ORDER BY category"
     ).fetchall()
-    return [dict(zip(["category", "monthly_limit", "updated_by", "updated_at"], r)) for r in rows]
+    return [dict(zip(["category", "monthly_limit", "notes", "updated_by", "updated_at"], r)) for r in rows]
 
 
-def set_budget(category: str, monthly_limit: float, updated_by: str):
+def set_budget(category: str, monthly_limit: float, updated_by: str, notes: str = ""):
     conn = get_connection()
     conn.execute(
-        """INSERT INTO budgets (category, monthly_limit, updated_by, updated_at)
-           VALUES (?, ?, ?, datetime('now'))
+        """INSERT INTO budgets (category, monthly_limit, notes, updated_by, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'))
            ON CONFLICT(category) DO UPDATE SET
                monthly_limit = excluded.monthly_limit,
+               notes = excluded.notes,
                updated_by = excluded.updated_by,
                updated_at = datetime('now')""",
-        (category, round(monthly_limit, 2), updated_by),
+        (category, round(monthly_limit, 2), notes.strip(), updated_by),
     )
     _sync_write(conn)
 
