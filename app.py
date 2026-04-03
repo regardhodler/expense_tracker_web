@@ -975,8 +975,8 @@ def page_analysis(username: str):
             st.plotly_chart(trend, use_container_width=True)
 
     # Canadian Average comparison
-    st.subheader("🇨🇦 vs Canadian Averages")
-    st.caption("Your monthly rate vs Canadian 2-person household averages (2023)")
+    st.subheader("🇨🇦 Your Monthly Average vs Canadian Average")
+    st.caption("Your monthly average spending per category vs Canadian 2-person household averages (2023)")
     cdn = canadian_comparison(df, start, end)
     st.plotly_chart(canadian_comparison_chart(cdn), use_container_width=True)
     st.dataframe(cdn, use_container_width=True, hide_index=True)
