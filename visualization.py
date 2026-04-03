@@ -169,6 +169,7 @@ def yearly_mom_chart(monthly_totals: dict, year: int, prev_year_totals=None) -> 
     return fig
 
 
+def canadian_comparison_chart(comp_df):
     """Grouped bar chart comparing user spending vs Canadian averages."""
     fig = go.Figure()
     fig.add_trace(go.Bar(
