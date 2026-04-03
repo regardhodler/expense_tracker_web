@@ -95,7 +95,61 @@ def monthly_trend_chart(df: pd.DataFrame):
 
 
 
-def canadian_comparison_chart(comp_df: pd.DataFrame):
+def yearly_mom_chart(monthly_totals: dict, year: int, prev_year_totals: dict | None = None) -> go.Figure:
+    """Bar chart of Jan–Dec spending. Green = month-over-month decrease, pink = increase.
+    Optional prior year shown as a dotted line overlay."""
+    import calendar as _cal
+
+    months = list(range(1, 13))
+    month_labels = [_cal.month_abbr[m] for m in months]
+    values = [monthly_totals.get(m, 0) for m in months]
+
+    colors = []
+    for i in range(len(months)):
+        if i == 0 or values[i - 1] == 0:
+            colors.append("#c44dff")
+        elif values[i] > 0 and values[i] < values[i - 1]:
+            colors.append("#2ecc71")   # green = spending went down 💚
+        else:
+            colors.append("#ff6b9d")   # pink = up or unchanged
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        name=str(year),
+        x=month_labels,
+        y=values,
+        marker_color=colors,
+        text=[f"${v:,.0f}" if v > 0 else "" for v in values],
+        textposition="outside",
+        hovertemplate="%{x} " + str(year) + ": <b>$%{y:,.2f}</b><extra></extra>",
+    ))
+
+    if prev_year_totals:
+        prev_values = [prev_year_totals.get(m, 0) for m in months]
+        fig.add_trace(go.Scatter(
+            name=str(year - 1),
+            x=month_labels,
+            y=prev_values,
+            mode="lines+markers",
+            line=dict(color="#6c8ebf", width=2, dash="dot"),
+            marker=dict(size=7, color="#6c8ebf"),
+            hovertemplate="%{x} " + str(year - 1) + ": <b>$%{y:,.2f}</b><extra></extra>",
+        ))
+
+    fig.update_layout(
+        title=f"📅 {year} — Month-over-Month Spending (🟢 down, 🩷 up)",
+        height=420,
+        margin=dict(t=50, b=20, l=20, r=20),
+        yaxis=dict(tickprefix="$", gridcolor="#2a2a4a", title="Amount ($)"),
+        xaxis=dict(gridcolor="#2a2a4a"),
+        plot_bgcolor="#0e1117",
+        paper_bgcolor="#0e1117",
+        font=dict(color="#e0e0e0"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    return fig
+
+
     """Grouped bar chart comparing user spending vs Canadian averages."""
     fig = go.Figure()
     fig.add_trace(go.Bar(

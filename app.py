@@ -29,7 +29,7 @@ from analysis import (
 from visualization import (
     pie_chart, bar_chart, monthly_trend_chart, comparison_bar_chart,
     canadian_comparison_chart, spending_heatmap, love_history_chart,
-    who_spends_more_chart, savings_goal_chart,
+    who_spends_more_chart, savings_goal_chart, yearly_mom_chart,
 )
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
 
@@ -272,6 +272,18 @@ def page_dashboard(username: str):
     prev_month_rows = _cached_expenses_between(prev_month_start.isoformat(), prev_month_end.isoformat())
     prev_month_total = sum(r["amount"] for r in prev_month_rows)
 
+    # Two months ago (for savings bonus comparison — full month vs full month)
+    if today.month <= 2:
+        _two_m = 12 if today.month == 1 else 11
+        _two_y = today.year - 1
+    else:
+        _two_m = today.month - 2
+        _two_y = today.year
+    _two_start = date(_two_y, _two_m, 1)
+    _two_end = date(_two_y, _two_m, calendar.monthrange(_two_y, _two_m)[1])
+    two_months_ago_rows = _cached_expenses_between(_two_start.isoformat(), _two_end.isoformat())
+    two_months_ago_total = sum(r["amount"] for r in two_months_ago_rows)
+
     month_delta = month_total - prev_month_total if prev_month_total > 0 else None
 
     col1, col2 = st.columns(2)
@@ -450,6 +462,26 @@ def page_dashboard(username: str):
     if love_hist:
         with st.expander("📈 Love History"):
             st.plotly_chart(love_history_chart(love_hist), use_container_width=True)
+
+    # --- Savings Bonus Badge ---
+    if prev_month_total > 0 and two_months_ago_total > 0:
+        saved = two_months_ago_total - prev_month_total
+        if saved > 0:
+            saved_pct = saved / two_months_ago_total * 100
+            st.markdown(
+                f'<div style="background:linear-gradient(135deg,#1a3a2a,#1e4d2b);'
+                f'border:2px solid #2ecc71;border-radius:14px;padding:18px 22px;margin:12px 0;'
+                f'display:flex;align-items:center;gap:16px">'
+                f'<div style="font-size:2.5em">💚</div>'
+                f'<div>'
+                f'<div style="color:#2ecc71;font-weight:bold;font-size:1.1em">Frugal Lovers Bonus! +3 Love Points</div>'
+                f'<div style="color:#a8e6b8;font-size:0.9em;margin-top:4px">'
+                f'Last month you spent <strong style="color:#fff">${prev_month_total:,.2f}</strong> — '
+                f'that\'s <strong style="color:#2ecc71">${saved:,.2f} ({saved_pct:.1f}%) less</strong> than the month before. '
+                f'Smart spending is an act of love! 🌿'
+                f'</div></div></div>',
+                unsafe_allow_html=True,
+            )
 
     # --- Our Story This Year ---
     year_start_dn = date(today.year, 1, 1)
@@ -886,6 +918,44 @@ def page_monthly_view(username: str):
 
 def page_analysis(username: str):
     st.header("Analysis & Reports")
+
+    # --- Month-over-Month Yearly Chart (top of page) ---
+    st.subheader("📅 Month-over-Month Spending")
+    _today = date.today()
+    _year_sel = st.selectbox(
+        "Year", list(range(_today.year, 2023, -1)), key="mom_year_sel"
+    )
+    _show_prev = st.checkbox("Compare with prior year", value=True, key="mom_show_prev")
+
+    _yr_start = date(_year_sel, 1, 1)
+    _yr_end = date(_year_sel, 12, 31)
+    _yr_rows = get_expenses_between(_yr_start, _yr_end)
+    _yr_df = rows_to_dataframe(_yr_rows)
+
+    if not _yr_df.empty:
+        _monthly = _yr_df.groupby(_yr_df["date"].dt.month)["amount"].sum().to_dict()
+    else:
+        _monthly = {}
+
+    _prev_monthly = None
+    if _show_prev:
+        _py_rows = get_expenses_between(date(_year_sel - 1, 1, 1), date(_year_sel - 1, 12, 31))
+        _py_df = rows_to_dataframe(_py_rows)
+        if not _py_df.empty:
+            _prev_monthly = _py_df.groupby(_py_df["date"].dt.month)["amount"].sum().to_dict()
+
+    st.plotly_chart(yearly_mom_chart(_monthly, _year_sel, _prev_monthly), use_container_width=True)
+
+    # MoM savings count
+    _mom_vals = [_monthly.get(m, 0) for m in range(1, 13)]
+    _down_months = sum(
+        1 for i in range(1, 12)
+        if _mom_vals[i] > 0 and _mom_vals[i - 1] > 0 and _mom_vals[i] < _mom_vals[i - 1]
+    )
+    if _down_months > 0:
+        st.success(f"💚 {_down_months} month{'s' if _down_months > 1 else ''} with lower spending than the prior month — that's +{_down_months * 3} love points earned this year!")
+
+    st.divider()
 
     period = st.selectbox("Period", PERIOD_OPTIONS)
 
