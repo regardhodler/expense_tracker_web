@@ -284,13 +284,13 @@ def page_dashboard(username: str):
     if month_rows:
         proj = spending_projections(month_rows, month_start, today)
         p1, p2, p3 = st.columns(3)
-        p1.metric("Daily Average", f"${proj['daily_avg']:,.2f}")
-        p2.metric("Weekly Average", f"${proj['weekly_avg']:,.2f}")
-        p3.metric("Projected Month Total", f"${proj['projected_total']:,.2f}")
+        p1.metric("Daily Average", f"${proj['daily_avg']:,.2f}", help="Variable spending only (excludes recurring)")
+        p2.metric("Weekly Average", f"${proj['weekly_avg']:,.2f}", help="Variable spending only (excludes recurring)")
+        p3.metric("Projected Month Total", f"${proj['projected_total']:,.2f}", help="Projected variable + fixed recurring")
         st.caption(
-            f"{proj['days_elapsed']} of {proj['days_in_month']} days into the month. "
-            f"Averaging ${proj['daily_avg']:,.2f}/day, on track for "
-            f"${proj['projected_total']:,.2f} this month."
+            f"{proj['days_elapsed']} of {proj['days_in_month']} days elapsed. "
+            f"Variable avg: ${proj['daily_avg']:,.2f}/day → projected ${proj['projected_total'] - proj['recurring_total']:,.2f} + "
+            f"${proj['recurring_total']:,.2f} recurring = **${proj['projected_total']:,.2f}** total."
         )
 
     # Love Points
@@ -1029,39 +1029,7 @@ def page_analysis(username: str):
 def page_budgets(username: str):
     st.header("Budget Tracking")
 
-    # --- Edit form (shown when editing) ---
-    editing_cat = st.session_state.get("editing_budget_cat")
-    if editing_cat is not None:
-        all_budgets = get_budgets()
-        edit_b = next((b for b in all_budgets if b["category"] == editing_cat), None)
-        if edit_b:
-            st.subheader(f"✏️ Edit Budget: {editing_cat}")
-            with st.form("edit_budget_form"):
-                e_limit = st.number_input(
-                    "Monthly Limit ($)", min_value=0.01, max_value=MAX_AMOUNT,
-                    step=10.0, format="%.2f", value=float(edit_b["monthly_limit"])
-                )
-                e_notes = st.text_area(
-                    "Comments (optional)", value=edit_b.get("notes") or "",
-                    placeholder="e.g. Includes groceries and dining out", max_chars=300
-                )
-                col_save, col_cancel = st.columns(2)
-                with col_save:
-                    save = st.form_submit_button("💾 Save Changes", use_container_width=True)
-                with col_cancel:
-                    cancel = st.form_submit_button("Cancel", use_container_width=True)
-
-                if save:
-                    set_budget(editing_cat, e_limit, username, e_notes)
-                    st.session_state.pop("editing_budget_cat", None)
-                    st.success(f"Budget for {editing_cat} updated!")
-                    st.rerun()
-                if cancel:
-                    st.session_state.pop("editing_budget_cat", None)
-                    st.rerun()
-        return
-
-    # --- Add new budget form ---
+    # Set budgets
     st.subheader("Set Monthly Budgets")
     with st.form("budget_form"):
         category = st.selectbox("Category", CATEGORIES)
@@ -1071,7 +1039,7 @@ def page_budgets(username: str):
             set_budget(category, limit, username, notes)
             st.success(f"Budget for {category} set to ${limit:,.2f}")
 
-    # --- Show current budgets with progress ---
+    # Show current budgets with progress
     st.subheader("Current Month Progress")
     today = date.today()
     budgets = get_budgets()
@@ -1088,7 +1056,7 @@ def page_budgets(username: str):
         spent = category_totals.get(cat, 0)
         pct = min(spent / limit_val, 1.0) if limit_val > 0 else 0
 
-        col1, col2, col3, col_edit, col_del = st.columns([3, 1, 1, 0.5, 0.5])
+        col1, col2, col3 = st.columns([3, 1, 1])
         with col1:
             st.progress(pct, text=f"{cat}")
         with col2:
@@ -1098,28 +1066,6 @@ def page_budgets(username: str):
                 st.error(f"Over by ${spent - limit_val:,.2f}")
             else:
                 st.caption(f"${limit_val - spent:,.2f} left")
-        with col_edit:
-            if st.button("✏️", key=f"edit_{cat}", help=f"Edit {cat} budget"):
-                st.session_state["editing_budget_cat"] = cat
-                st.rerun()
-        with col_del:
-            if st.button("🗑️", key=f"del_{cat}", help=f"Delete {cat} budget"):
-                st.session_state[f"confirm_del_{cat}"] = True
-                st.rerun()
-
-        if st.session_state.get(f"confirm_del_{cat}"):
-            st.warning(f"Delete **{cat}** budget?")
-            c1, c2, _ = st.columns([1, 1, 4])
-            with c1:
-                if st.button("Yes, delete", key=f"confirm_yes_{cat}", type="primary"):
-                    delete_budget(cat)
-                    st.session_state.pop(f"confirm_del_{cat}", None)
-                    st.rerun()
-            with c2:
-                if st.button("Cancel", key=f"confirm_no_{cat}"):
-                    st.session_state.pop(f"confirm_del_{cat}", None)
-                    st.rerun()
-
         if b.get("notes"):
             st.caption(f"💬 {b['notes']}")
 
