@@ -9,6 +9,7 @@ import tempfile
 import os
 import logging
 from datetime import date, datetime, timedelta
+from typing import Optional
 
 import libsql_experimental as libsql
 import streamlit as st
@@ -168,7 +169,7 @@ def add_expense(date_val: date, amount: float, category: str, description: str, 
     _sync_write(conn)
 
 
-def get_expense_by_id(expense_id: int) -> dict | None:
+def get_expense_by_id(expense_id: int) -> Optional[dict]:
     """Fetch a single expense by ID."""
     conn = get_connection()
     _sync_read(conn)
@@ -281,7 +282,7 @@ def get_monthly_category_totals(year: int, month: int) -> dict[str, float]:
 
 def add_recurring_expense(name: str, amount: float, category: str, description: str,
                           frequency: str, day_of_month: int, added_by: str,
-                          start_date: str | None = None):
+                          start_date: Optional[str] = None):
     conn = get_connection()
     conn.execute(
         """INSERT INTO recurring_expenses
@@ -306,7 +307,7 @@ def get_recurring_expenses(active_only: bool = True) -> list[dict]:
 
 def update_recurring_expense(expense_id: int, name: str, amount: float, category: str,
                              description: str, frequency: str, day_of_month: int,
-                             start_date: str | None = None, added_by: str | None = None):
+                             start_date: Optional[str] = None, added_by: Optional[str] = None):
     conn = get_connection()
     if added_by is not None:
         conn.execute(
@@ -485,7 +486,7 @@ def get_savings_goals() -> list[dict]:
     return [dict(zip(_GOAL_COLUMNS, r)) for r in rows]
 
 
-def add_savings_goal(name: str, target_amount: float, category: str | None, emoji: str, created_by: str):
+def add_savings_goal(name: str, target_amount: float, category: Optional[str], emoji: str, created_by: str):
     conn = get_connection()
     conn.execute(
         "INSERT INTO savings_goals (name, target_amount, category, emoji, created_by) VALUES (?, ?, ?, ?, ?)",
@@ -537,7 +538,7 @@ def add_date_night(night_date: date, where_text: str, how_text: str):
     _sync_write(conn)
 
 
-def get_date_nights(start_date: date | None = None, end_date: date | None = None) -> list[dict]:
+def get_date_nights(start_date: Optional[date] = None, end_date: Optional[date] = None) -> list[dict]:
     """Return date nights ordered newest first, optionally filtered by date range."""
     conn = get_connection()
     _sync_read(conn)
