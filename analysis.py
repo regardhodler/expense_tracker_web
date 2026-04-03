@@ -7,7 +7,9 @@ from dateutil.relativedelta import relativedelta
 
 CATEGORIES = [
     "Housing", "Food", "Health", "Transportation",
-    "Personal", "Entertainment", "Utilities", "Others",
+    "Personal", "Entertainment", "Utilities", "Travel",
+    "Shopping", "Subscriptions", "Gifts", "Education",
+    "Pets", "Savings", "Taxes",
 ]
 
 PERIOD_OPTIONS = [
@@ -103,29 +105,13 @@ def month_comparison(current_rows: list[dict], prev_rows: list[dict]) -> tuple[p
 
 
 def spending_projections(rows: list[dict], month_start: date, today: date) -> dict:
-    """Compute daily/weekly averages and projected month total.
-
-    Recurring expenses (e.g. mortgage, subscriptions) are fixed monthly costs
-    paid once — they are excluded from the daily-average projection and added
-    back as a flat amount so they are not multiplied across days.
-    """
-    recurring_rows = [r for r in rows if (r.get("description") or "").startswith("[Recurring]")]
-    variable_rows  = [r for r in rows if not (r.get("description") or "").startswith("[Recurring]")]
-
-    recurring_total = sum(r["amount"] for r in recurring_rows)
-    variable_total  = sum(r["amount"] for r in variable_rows)
-    total_so_far    = recurring_total + variable_total
-
-    days_elapsed  = max((today - month_start).days + 1, 1)
+    """Compute daily/weekly averages and projected month total."""
+    total_so_far = sum(r["amount"] for r in rows)
+    days_elapsed = max((today - month_start).days + 1, 1)
     days_in_month = calendar.monthrange(today.year, today.month)[1]
-
-    # Daily/weekly averages are based on variable spending only
-    daily_avg  = variable_total / days_elapsed
+    daily_avg = total_so_far / days_elapsed
     weekly_avg = daily_avg * 7
-
-    # Projection = recurring costs (once) + variable spending extrapolated to full month
-    projected_total = recurring_total + daily_avg * days_in_month
-
+    projected_total = daily_avg * days_in_month
     return {
         "daily_avg": daily_avg,
         "weekly_avg": weekly_avg,
@@ -133,8 +119,6 @@ def spending_projections(rows: list[dict], month_start: date, today: date) -> di
         "days_elapsed": days_elapsed,
         "days_in_month": days_in_month,
         "total_so_far": total_so_far,
-        "recurring_total": recurring_total,
-        "variable_total": variable_total,
     }
 
 
