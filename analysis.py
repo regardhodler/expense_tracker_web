@@ -9,7 +9,7 @@ CATEGORIES = [
     "Housing", "Food", "Health", "Transportation",
     "Personal", "Entertainment", "Utilities", "Travel",
     "Shopping", "Subscriptions", "Gifts", "Education",
-    "Pets", "Savings", "Taxes", "Insurance", "Internet", "Others",
+    "Pets", "Savings", "Taxes", "Insurance", "Internet", "Mobile", "Others",
 ]
 
 PERIOD_OPTIONS = [
