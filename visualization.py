@@ -96,7 +96,8 @@ def monthly_trend_chart(df: pd.DataFrame):
 
 
 def yearly_mom_chart(monthly_totals: dict, year: int, prev_year_totals=None) -> go.Figure:
-    """Bar chart of Jan–Dec spending. Green = month-over-month decrease, pink = increase.
+    """Bar chart of Jan–Dec spending. Green = down MoM, grey/purple = first/no data.
+    Red circle marker floats above bars where spending went UP as a warning.
     Optional prior year shown as a dotted line overlay."""
     import calendar as _cal
 
@@ -105,13 +106,16 @@ def yearly_mom_chart(monthly_totals: dict, year: int, prev_year_totals=None) -> 
     values = [monthly_totals.get(m, 0) for m in months]
 
     colors = []
+    warning_x, warning_y = [], []
     for i in range(len(months)):
         if i == 0 or values[i - 1] == 0:
-            colors.append("#c44dff")
+            colors.append("#c44dff")   # purple = first month / no prior data
         elif values[i] > 0 and values[i] < values[i - 1]:
             colors.append("#2ecc71")   # green = spending went down 💚
-        else:
-            colors.append("#ff6b9d")   # pink = up or unchanged
+        elif values[i] > 0:
+            colors.append("#ff6b9d")   # pink bar = up
+            warning_x.append(month_labels[i])
+            warning_y.append(values[i])   # red circle will sit at bar top
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -123,6 +127,21 @@ def yearly_mom_chart(monthly_totals: dict, year: int, prev_year_totals=None) -> 
         textposition="outside",
         hovertemplate="%{x} " + str(year) + ": <b>$%{y:,.2f}</b><extra></extra>",
     ))
+
+    if warning_x:
+        fig.add_trace(go.Scatter(
+            name="⚠️ Spending up",
+            x=warning_x,
+            y=warning_y,
+            mode="markers",
+            marker=dict(
+                symbol="circle",
+                size=18,
+                color="rgba(255,50,50,0.15)",
+                line=dict(color="#ff3232", width=2.5),
+            ),
+            hovertemplate="%{x}: <b>spending increased ⚠️</b><extra></extra>",
+        ))
 
     if prev_year_totals:
         prev_values = [prev_year_totals.get(m, 0) for m in months]
@@ -137,8 +156,8 @@ def yearly_mom_chart(monthly_totals: dict, year: int, prev_year_totals=None) -> 
         ))
 
     fig.update_layout(
-        title=f"📅 {year} — Month-over-Month Spending (🟢 down, 🩷 up)",
-        height=420,
+        title=f"📅 {year} — Month-over-Month Spending (🟢 down · 🔴 up warning)",
+        height=440,
         margin=dict(t=50, b=20, l=20, r=20),
         yaxis=dict(tickprefix="$", gridcolor="#2a2a4a", title="Amount ($)"),
         xaxis=dict(gridcolor="#2a2a4a"),
