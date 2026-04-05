@@ -17,6 +17,7 @@ import streamlit as st
 logger = logging.getLogger(__name__)
 
 _COLUMNS = ["id", "date", "amount", "category", "description", "added_by", "is_tax_writeoff"]
+_INCOME_COLUMNS = ["id", "year", "month", "amount", "label", "created_at"]
 
 # ---------------------------------------------------------------------------
 # Connection management
@@ -159,6 +160,17 @@ def init_db():
         conn.execute("ALTER TABLE date_nights ADD COLUMN expense_amount REAL DEFAULT 0")
     except Exception:
         pass  # column already exists
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS jude_income (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            year       INTEGER NOT NULL,
+            month      INTEGER NOT NULL,
+            amount     REAL    NOT NULL,
+            label      TEXT,
+            created_at TEXT    NOT NULL
+        )
+    """)
 
     _sync_write(conn)
 
@@ -590,4 +602,40 @@ def get_date_night_dates(year: int, month: int) -> set[int]:
 def delete_date_night(night_date: date):
     conn = get_connection()
     conn.execute("DELETE FROM date_nights WHERE night_date = ?", (night_date.isoformat(),))
+    _sync_write(conn)
+
+
+# ---------------------------------------------------------------------------
+# Jude Income CRUD
+# ---------------------------------------------------------------------------
+
+def add_jude_income(year: int, month: int, amount: float, label: Optional[str] = None) -> None:
+    """Insert a new income entry for Jude."""
+    conn = get_connection()
+    conn.execute(
+        """
+        INSERT INTO jude_income (year, month, amount, label, created_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
+        """,
+        (year, month, round(amount, 2), label),
+    )
+    _sync_write(conn)
+
+
+def get_jude_income(year: int) -> list[dict]:
+    """Return all income entries for the given year, ordered by month then created_at."""
+    conn = get_connection()
+    _sync_read(conn)
+    cursor = conn.execute(
+        "SELECT id, year, month, amount, label, created_at FROM jude_income WHERE year = ? ORDER BY month, created_at",
+        (year,),
+    )
+    rows = cursor.fetchall()
+    return [dict(zip(_INCOME_COLUMNS, row)) for row in rows]
+
+
+def delete_jude_income(income_id: int) -> None:
+    """Delete a single income entry by id."""
+    conn = get_connection()
+    conn.execute("DELETE FROM jude_income WHERE id = ?", (income_id,))
     _sync_write(conn)
