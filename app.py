@@ -17,6 +17,7 @@ from database import (
     get_savings_goals, add_savings_goal, update_savings_goal_progress,
     complete_savings_goal, delete_savings_goal,
     add_date_night, get_date_nights, get_date_night_dates, delete_date_night,
+    add_jude_income, get_jude_income, delete_jude_income,
 )
 from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
@@ -24,12 +25,12 @@ from analysis import (
     expenses_for_day, spending_projections, month_comparison,
     love_points, LOVE_TIERS, LOVE_MESSAGES, canadian_comparison, DISPLAY_NAMES,
     get_streaks, get_monthly_challenges, get_achievements,
-    get_love_history, get_who_spends_more,
+    get_love_history, get_who_spends_more, aggregate_jueds_month,
 )
 from visualization import (
     pie_chart, bar_chart, monthly_trend_chart, comparison_bar_chart,
     canadian_comparison_chart, spending_heatmap, love_history_chart,
-    who_spends_more_chart, savings_goal_chart, yearly_mom_chart,
+    who_spends_more_chart, savings_goal_chart, yearly_mom_chart, jueds_monthly_chart,
 )
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
 
@@ -1585,6 +1586,151 @@ def page_savings_goals(username: str):
                     st.rerun()
 
 
+def page_jueds_quantitative(username: str) -> None:
+    """Jude's personal income vs expense dashboard."""
+    st.header("Jude's Quantitative")
+
+    # ── Year selector ──────────────────────────────────────────────────────
+    current_year = date.today().year
+    year_options = list(range(current_year, current_year - 5, -1))
+    selected_year = st.selectbox("Year", year_options, index=0)
+
+    # ── Income log section ─────────────────────────────────────────────────
+    with st.expander("Log Income", expanded=True):
+        col1, col2, col3, col4 = st.columns([2, 2, 3, 1])
+        with col1:
+            month_names = [calendar.month_name[m] for m in range(1, 13)]
+            income_month = st.selectbox(
+                "Month", month_names,
+                index=date.today().month - 1,
+                key="income_month_select",
+            )
+            income_month_num = month_names.index(income_month) + 1
+        with col2:
+            income_amount = st.number_input(
+                "Amount", min_value=0.01, step=100.0, format="%.2f",
+                key="income_amount_input",
+            )
+        with col3:
+            income_label = st.text_input(
+                "Label (optional)", placeholder="e.g. 1st paycheck",
+                key="income_label_input",
+            )
+        with col4:
+            st.write("")  # vertical alignment spacer
+            st.write("")
+            if st.button("Add", key="add_income_btn", use_container_width=True):
+                if income_amount > 0:
+                    add_jude_income(selected_year, income_month_num, income_amount, income_label or None)
+                    st.success("Income logged.")
+                    st.rerun()
+
+        # Show existing entries for the selected month
+        all_income = get_jude_income(selected_year)
+        month_income = [r for r in all_income if r["month"] == income_month_num]
+        if month_income:
+            st.markdown(f"**{income_month} entries**")
+            for entry in month_income:
+                ec1, ec2, ec3 = st.columns([3, 2, 1])
+                with ec1:
+                    st.write(entry["label"] or "—")
+                with ec2:
+                    st.write(f"${entry['amount']:,.2f}")
+                with ec3:
+                    confirm_key = f"confirm_delete_income_{entry['id']}"
+                    if st.session_state.get(confirm_key):
+                        dc1, dc2 = st.columns(2)
+                        with dc1:
+                            if st.button("Yes, delete", key=f"yes_{entry['id']}",
+                                         use_container_width=True):
+                                delete_jude_income(entry["id"])
+                                st.session_state.pop(confirm_key, None)
+                                st.rerun()
+                        with dc2:
+                            if st.button("Cancel", key=f"cancel_{entry['id']}",
+                                         use_container_width=True):
+                                st.session_state.pop(confirm_key, None)
+                                st.rerun()
+                    else:
+                        if st.button("Delete", key=f"del_{entry['id']}",
+                                     use_container_width=True):
+                            st.session_state[confirm_key] = True
+                            st.rerun()
+        else:
+            st.caption(f"No income entries for {income_month} {selected_year}.")
+
+    # ── Build 12-month data ────────────────────────────────────────────────
+    all_income_year = get_jude_income(selected_year)
+    monthly_rows = []
+
+    for m in range(1, 13):
+        m_start = date(selected_year, m, 1)
+        m_end = date(selected_year, m, calendar.monthrange(selected_year, m)[1])
+        expense_rows = get_expenses_between(m_start, m_end)
+        month_income_rows = [r for r in all_income_year if r["month"] == m]
+
+        agg = aggregate_jueds_month(expense_rows, month_income_rows)
+        has_income = len(month_income_rows) > 0
+
+        monthly_rows.append({
+            "month_label": calendar.month_abbr[m],
+            "month_num": m,
+            "net_income": agg["net_income"],
+            "recurring_expense": agg["recurring_expense"],
+            "manual_expense": agg["manual_expense"],
+            "free_cash_flow": agg["free_cash_flow"],
+            "has_income": has_income,
+        })
+
+    # ── Chart ──────────────────────────────────────────────────────────────
+    st.plotly_chart(jueds_monthly_chart(monthly_rows), use_container_width=True)
+
+    # ── Monthly breakdown table ────────────────────────────────────────────
+    st.subheader("Monthly Breakdown")
+
+    def _fcf_style(val: float, has_income: bool) -> str:
+        if not has_income:
+            return "—"
+        sign = "+" if val >= 0 else ""
+        return f"{sign}${val:,.2f}"
+
+    def _income_display(val: float, has_income: bool) -> str:
+        return f"${val:,.2f}" if has_income else "—"
+
+    table_rows = []
+    for r in monthly_rows:
+        table_rows.append({
+            "Month": r["month_label"],
+            "Net Income": _income_display(r["net_income"], r["has_income"]),
+            "Recurring Expense": f"${r['recurring_expense']:,.2f}",
+            "Manual Expense": f"${r['manual_expense']:,.2f}",
+            "Free Cash Flow": _fcf_style(r["free_cash_flow"], r["has_income"]),
+            "_fcf_raw": r["free_cash_flow"],
+            "_has_income": r["has_income"],
+        })
+
+    display_df = pd.DataFrame(table_rows).drop(columns=["_fcf_raw", "_has_income"])
+
+    def highlight_fcf(row):
+        styles = [""] * len(row)
+        col_idx = list(row.index).index("Free Cash Flow")
+        pos = display_df.index.get_loc(row.name)
+        raw_val = table_rows[pos]["_fcf_raw"]
+        has = table_rows[pos]["_has_income"]
+        if has:
+            if raw_val >= 0:
+                styles[col_idx] = "color: #27ae60; background-color: #eafaf1"
+            else:
+                styles[col_idx] = "color: #c0392b; background-color: #fdedec"
+        return styles
+
+    st.dataframe(
+        display_df.style.apply(highlight_fcf, axis=1),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1620,7 +1766,8 @@ def main():
     page = st.sidebar.radio(
         "Navigate",
         ["Dashboard", "Add Expense", "Monthly View", "Analysis",
-         "Search", "Budgets", "Recurring Expense", "Manage Expenses", "Savings Goals"],
+         "Search", "Budgets", "Recurring Expense", "Manage Expenses", "Savings Goals",
+         "Jude's Quantitative"],
     )
 
     pages = {
@@ -1633,6 +1780,7 @@ def main():
         "Recurring Expense": page_recurring,
         "Manage Expenses": page_manage_expenses,
         "Savings Goals": page_savings_goals,
+        "Jude's Quantitative": page_jueds_quantitative,
     }
     pages[page](username)
 
