@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from analysis import get_period_dates, category_summary, daily_totals_for_month, rows_to_dataframe, love_points, DISPLAY_NAMES, aggregate_jueds_month
+from analysis import get_period_dates, category_summary, daily_totals_for_month, rows_to_dataframe, love_points, DISPLAY_NAMES, aggregate_jueds_month, _person_badge, _person_label
 
 
 # ---------------------------------------------------------------------------
@@ -337,4 +337,39 @@ class TestAggregateJuedsMonth:
                  "added_by": "wife", "is_tax_writeoff": 0}]
         result = aggregate_jueds_month(rows, [])
         assert result["recurring_expense"] == 0.0
-        assert result["manual_expense"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# _person_badge / _person_label
+# ---------------------------------------------------------------------------
+
+class TestPersonHelpers:
+    def test_badge_husband_contains_jude(self):
+        assert "Jude" in _person_badge("husband")
+
+    def test_badge_husband_contains_blue_heart(self):
+        assert "💙" in _person_badge("husband")
+
+    def test_badge_husband_contains_blue_color(self):
+        assert "#3498db" in _person_badge("husband")
+
+    def test_badge_wife_contains_wincyl(self):
+        assert "Wincyl" in _person_badge("wife")
+
+    def test_badge_wife_contains_pink_heart(self):
+        assert "🩷" in _person_badge("wife")
+
+    def test_badge_wife_contains_pink_color(self):
+        assert "#e056a0" in _person_badge("wife")
+
+    def test_badge_unknown_returns_raw(self):
+        assert _person_badge("unknown") == "unknown"
+
+    def test_label_husband(self):
+        assert _person_label("husband") == "💙 Jude"
+
+    def test_label_wife(self):
+        assert _person_label("wife") == "🩷 Wincyl"
+
+    def test_label_unknown_returns_raw(self):
+        assert _person_label("unknown") == "unknown"

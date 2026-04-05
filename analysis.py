@@ -693,6 +693,26 @@ def aggregate_jueds_month(
     }
 
 
+def _person_badge(added_by: str) -> str:
+    """HTML pill badge — use with unsafe_allow_html=True in Streamlit."""
+    if added_by == "husband":
+        return (
+            '<span style="background:#3498db;color:white;padding:1px 8px;'
+            'border-radius:10px;font-size:11px;font-weight:600">💙 Jude</span>'
+        )
+    elif added_by == "wife":
+        return (
+            '<span style="background:#e056a0;color:white;padding:1px 8px;'
+            'border-radius:10px;font-size:11px;font-weight:600">🩷 Wincyl</span>'
+        )
+    return added_by
+
+
+def _person_label(added_by: str) -> str:
+    """Plain-text emoji label for dataframe cells (no HTML rendering)."""
+    return {"husband": "💙 Jude", "wife": "🩷 Wincyl"}.get(added_by, added_by)
+
+
 def get_who_spends_more(df: pd.DataFrame) -> pd.DataFrame:
     """Per category, show Jude vs Wincyl spending."""
     if df.empty:

@@ -26,6 +26,7 @@ from analysis import (
     love_points, LOVE_TIERS, LOVE_MESSAGES, canadian_comparison, DISPLAY_NAMES,
     get_streaks, get_monthly_challenges, get_achievements,
     get_love_history, get_who_spends_more, aggregate_jueds_month,
+    _person_badge, _person_label,
 )
 from visualization import (
     pie_chart, bar_chart, monthly_trend_chart, comparison_bar_chart,
