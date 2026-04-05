@@ -168,7 +168,7 @@ def init_db():
             month      INTEGER NOT NULL,
             amount     REAL    NOT NULL,
             label      TEXT,
-            created_at TEXT    NOT NULL
+            created_at TEXT    NOT NULL DEFAULT (datetime('now'))
         )
     """)
 
