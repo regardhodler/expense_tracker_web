@@ -650,6 +650,49 @@ def get_love_history(all_rows: list[dict]) -> list[dict]:
 # Who spends more
 # ---------------------------------------------------------------------------
 
+def aggregate_jueds_month(
+    expense_rows: list[dict],
+    income_rows: list[dict],
+) -> dict:
+    """
+    Compute Jude's (husband) financial breakdown for a single month.
+
+    Parameters
+    ----------
+    expense_rows : rows from get_expenses_between() for the target month
+    income_rows  : rows from get_jude_income() filtered to the target month
+
+    Returns
+    -------
+    dict with keys:
+        recurring_expense  – sum of Jude's [Recurring] expenses
+        manual_expense     – sum of Jude's non-recurring expenses
+        net_income         – sum of income_rows amounts
+        free_cash_flow     – net_income - recurring_expense - manual_expense
+    """
+    df = rows_to_dataframe(expense_rows)
+
+    if df.empty:
+        recurring_expense = 0.0
+        manual_expense = 0.0
+    else:
+        jude_df = df[df["added_by"] == "husband"].copy()
+        jude_df["description"] = jude_df["description"].fillna("")
+        is_recurring = jude_df["description"].str.startswith("[Recurring]")
+        recurring_expense = float(jude_df[is_recurring]["amount"].sum())
+        manual_expense = float(jude_df[~is_recurring]["amount"].sum())
+
+    net_income = sum(r["amount"] for r in income_rows)
+    free_cash_flow = net_income - recurring_expense - manual_expense
+
+    return {
+        "recurring_expense": round(recurring_expense, 2),
+        "manual_expense": round(manual_expense, 2),
+        "net_income": round(net_income, 2),
+        "free_cash_flow": round(free_cash_flow, 2),
+    }
+
+
 def get_who_spends_more(df: pd.DataFrame) -> pd.DataFrame:
     """Per category, show Jude vs Wincyl spending."""
     if df.empty:

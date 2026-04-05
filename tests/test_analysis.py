@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from analysis import get_period_dates, category_summary, daily_totals_for_month, rows_to_dataframe, love_points, DISPLAY_NAMES
+from analysis import get_period_dates, category_summary, daily_totals_for_month, rows_to_dataframe, love_points, DISPLAY_NAMES, aggregate_jueds_month
 
 
 # ---------------------------------------------------------------------------
@@ -259,3 +259,82 @@ class TestLovePoints:
         assert result["points"]["husband"] == 5.0
         assert result["points"]["wife"] == 0
         assert result["combined_points"] == 5.0
+
+
+# ---------------------------------------------------------------------------
+# aggregate_jueds_month
+# ---------------------------------------------------------------------------
+
+class TestAggregateJuedsMonth:
+    def _expense_rows(self):
+        """Mixed rows: Jude recurring, Jude manual, wife manual."""
+        return [
+            {"id": 1, "date": "2026-01-05", "amount": 2000.0,
+             "category": "Housing", "description": "[Recurring] Rent",
+             "added_by": "husband", "is_tax_writeoff": 0},
+            {"id": 2, "date": "2026-01-10", "amount": 500.0,
+             "category": "Food", "description": "Groceries",
+             "added_by": "husband", "is_tax_writeoff": 0},
+            {"id": 3, "date": "2026-01-12", "amount": 300.0,
+             "category": "Food", "description": "Lunch",
+             "added_by": "wife", "is_tax_writeoff": 0},
+            {"id": 4, "date": "2026-01-15", "amount": 100.0,
+             "category": "Personal", "description": None,
+             "added_by": "husband", "is_tax_writeoff": 0},
+        ]
+
+    def _income_rows(self):
+        return [
+            {"id": 1, "year": 2026, "month": 1, "amount": 3200.0,
+             "label": "1st paycheck", "created_at": "2026-01-10"},
+            {"id": 2, "year": 2026, "month": 1, "amount": 3200.0,
+             "label": "2nd paycheck", "created_at": "2026-01-25"},
+        ]
+
+    def test_recurring_expense_is_correct(self):
+        result = aggregate_jueds_month(self._expense_rows(), self._income_rows())
+        assert result["recurring_expense"] == 2000.0
+
+    def test_manual_expense_is_correct(self):
+        result = aggregate_jueds_month(self._expense_rows(), self._income_rows())
+        # 500 + 100 = 600 (wife's 300 excluded)
+        assert result["manual_expense"] == 600.0
+
+    def test_net_income_is_sum_of_income_rows(self):
+        result = aggregate_jueds_month(self._expense_rows(), self._income_rows())
+        assert result["net_income"] == 6400.0
+
+    def test_free_cash_flow(self):
+        result = aggregate_jueds_month(self._expense_rows(), self._income_rows())
+        # 6400 - 2000 - 600 = 3800
+        assert result["free_cash_flow"] == pytest.approx(3800.0)
+
+    def test_no_income_returns_zero_net_income(self):
+        result = aggregate_jueds_month(self._expense_rows(), [])
+        assert result["net_income"] == 0.0
+
+    def test_no_income_free_cash_flow_is_negative(self):
+        result = aggregate_jueds_month(self._expense_rows(), [])
+        assert result["free_cash_flow"] == pytest.approx(-2600.0)
+
+    def test_empty_expenses_zero_totals(self):
+        result = aggregate_jueds_month([], self._income_rows())
+        assert result["recurring_expense"] == 0.0
+        assert result["manual_expense"] == 0.0
+        assert result["free_cash_flow"] == 6400.0
+
+    def test_none_description_treated_as_manual(self):
+        rows = [{"id": 1, "date": "2026-01-01", "amount": 100.0,
+                 "category": "Food", "description": None,
+                 "added_by": "husband", "is_tax_writeoff": 0}]
+        result = aggregate_jueds_month(rows, [])
+        assert result["manual_expense"] == 100.0
+        assert result["recurring_expense"] == 0.0
+
+    def test_wife_expenses_excluded(self):
+        rows = [{"id": 1, "date": "2026-01-01", "amount": 500.0,
+                 "category": "Food", "description": "wife groceries",
+                 "added_by": "wife", "is_tax_writeoff": 0}]
+        result = aggregate_jueds_month(rows, [])
+        assert result["recurring_expense"] == 0.0
+        assert result["manual_expense"] == 0.0
