@@ -414,3 +414,70 @@ def savings_goal_chart(goals: list[dict]) -> go.Figure:
         font=dict(color="#e0e0e0"),
     )
     return fig
+
+
+def jueds_monthly_chart(monthly_data: list) -> go.Figure:
+    """
+    Grouped bar chart (Net Income / Recurring Expense / Manual Expense)
+    with a Free Cash Flow line overlay, colored green/red per point by sign.
+
+    Parameters
+    ----------
+    monthly_data : list of dicts, each with keys:
+        month_label        – str, e.g. "Jan"
+        net_income         – float
+        recurring_expense  – float
+        manual_expense     – float
+        free_cash_flow     – float
+    """
+    labels = [d["month_label"] for d in monthly_data]
+    net_income = [d["net_income"] for d in monthly_data]
+    recurring = [d["recurring_expense"] for d in monthly_data]
+    manual = [d["manual_expense"] for d in monthly_data]
+    fcf = [d["free_cash_flow"] for d in monthly_data]
+    fcf_colors = ["#2ecc71" if v >= 0 else "#e74c3c" for v in fcf]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        name="Net Income",
+        x=labels,
+        y=net_income,
+        marker_color="#3498db",
+        opacity=0.85,
+    ))
+    fig.add_trace(go.Bar(
+        name="Recurring Expense",
+        x=labels,
+        y=recurring,
+        marker_color="#e67e22",
+        opacity=0.85,
+    ))
+    fig.add_trace(go.Bar(
+        name="Manual Expense",
+        x=labels,
+        y=manual,
+        marker_color="#e74c3c",
+        opacity=0.85,
+    ))
+    fig.add_trace(go.Scatter(
+        name="Free Cash Flow",
+        x=labels,
+        y=fcf,
+        mode="lines+markers",
+        line=dict(color="#888888", width=2),
+        marker=dict(color=fcf_colors, size=8),
+        yaxis="y",
+    ))
+
+    fig.update_layout(
+        barmode="group",
+        xaxis_title="Month",
+        yaxis_title="Amount",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=40, r=20, t=40, b=40),
+    )
+
+    return fig
