@@ -682,7 +682,7 @@ def aggregate_jueds_month(
         recurring_expense = float(jude_df[is_recurring]["amount"].sum())
         manual_expense = float(jude_df[~is_recurring]["amount"].sum())
 
-    net_income = sum(r["amount"] for r in income_rows)
+    net_income = round(sum(r["amount"] for r in income_rows), 2)
     free_cash_flow = net_income - recurring_expense - manual_expense
 
     return {
