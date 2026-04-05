@@ -693,7 +693,14 @@ def page_add_expense(username: str):
         else:
             description = st.text_input("Description (optional)", "", max_chars=MAX_DESCRIPTION_LENGTH)
 
-        added_for = st.selectbox("Who is this for?", ["Jude", "Wincyl"], key="add_expense_for")
+        _person_options = ["Jude", "Wincyl"]
+        _default_for = DISPLAY_NAMES.get(username, "Jude")
+        added_for = st.selectbox(
+            "Who is this for?",
+            _person_options,
+            index=_person_options.index(_default_for) if _default_for in _person_options else 0,
+            key="add_expense_for",
+        )
         is_writeoff = st.checkbox("🧾 Tax Write-Off", value=False)
 
         submitted = st.form_submit_button("Add Expense", use_container_width=True)
@@ -1224,7 +1231,14 @@ def page_recurring(username: str):
         with col2:
             category = st.selectbox("Category", CATEGORIES)
         description = st.text_input("Description (optional)", "", max_chars=MAX_DESCRIPTION_LENGTH)
-        added_for = st.selectbox("Who is this for?", ["Jude", "Wincyl"], key="recurring_expense_for")
+        _person_options = ["Jude", "Wincyl"]
+        _default_for = DISPLAY_NAMES.get(username, "Jude")
+        added_for = st.selectbox(
+            "Who is this for?",
+            _person_options,
+            index=_person_options.index(_default_for) if _default_for in _person_options else 0,
+            key="recurring_expense_for",
+        )
 
         if frequency == "monthly":
             day_of_month = st.number_input("Day of Month", min_value=1, max_value=31, value=min(date.today().day, 28))
