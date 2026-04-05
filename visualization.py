@@ -467,7 +467,6 @@ def jueds_monthly_chart(monthly_data: list) -> go.Figure:
         mode="lines+markers",
         line=dict(color="#888888", width=2),
         marker=dict(color=fcf_colors, size=8),
-        yaxis="y",
     ))
 
     fig.update_layout(
