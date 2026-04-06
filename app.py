@@ -1921,8 +1921,7 @@ def main():
         st.sidebar.markdown("💕 **Happy Monthsary!** 💕")
     authenticator.logout("Logout", "sidebar")
 
-    dark_mode = st.sidebar.checkbox("🌙 Dark Mode", value=False, key="dark_mode")
-    inject_dark_mode_css(dark_mode)
+    inject_dark_mode_css(False)
 
     page = st.sidebar.radio(
         "Navigate",
