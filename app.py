@@ -613,7 +613,8 @@ def page_dashboard(username: str):
                         _cur_cat = [r for r in month_rows if r["category"] == _dash_selected_cat]
                         if _cur_cat:
                             _cur_cat_df = pd.DataFrame(_cur_cat)[["date", "amount", "description", "added_by"]]
-                            _cur_cat_df.columns = ["Date", "Amount", "Description", "Added By"]
+                            _cur_cat_df["added_by"] = _cur_cat_df["added_by"].map(_person_label)
+                            _cur_cat_df.columns = ["Date", "Amount", "Description", "Who is this for?"]
                             _cur_cat_df = _cur_cat_df.sort_values("Date", ascending=False)
                             _cur_cat_df["Amount"] = _cur_cat_df["Amount"].map("${:,.2f}".format)
                             st.dataframe(_cur_cat_df, use_container_width=True, hide_index=True)
@@ -624,7 +625,8 @@ def page_dashboard(username: str):
                         _prev_cat = [r for r in prev_month_rows if r["category"] == _dash_selected_cat]
                         if _prev_cat:
                             _prev_cat_df = pd.DataFrame(_prev_cat)[["date", "amount", "description", "added_by"]]
-                            _prev_cat_df.columns = ["Date", "Amount", "Description", "Added By"]
+                            _prev_cat_df["added_by"] = _prev_cat_df["added_by"].map(_person_label)
+                            _prev_cat_df.columns = ["Date", "Amount", "Description", "Who is this for?"]
                             _prev_cat_df = _prev_cat_df.sort_values("Date", ascending=False)
                             _prev_cat_df["Amount"] = _prev_cat_df["Amount"].map("${:,.2f}".format)
                             st.dataframe(_prev_cat_df, use_container_width=True, hide_index=True)
@@ -1045,7 +1047,8 @@ def page_analysis(username: str):
         _cat_df = df[df["category"] == _selected_cat].copy()
         _cat_df = _cat_df.sort_values("date", ascending=False)
         _cat_display = _cat_df[["date", "amount", "description", "added_by"]].copy()
-        _cat_display.columns = ["Date", "Amount", "Description", "Added By"]
+        _cat_display["added_by"] = _cat_display["added_by"].map(_person_label)
+        _cat_display.columns = ["Date", "Amount", "Description", "Who is this for?"]
         _cat_display["Amount"] = _cat_display["Amount"].map("${:,.2f}".format)
         st.dataframe(_cat_display, use_container_width=True, hide_index=True)
         st.caption(f"Total: **${_cat_df['amount'].sum():,.2f}** across {len(_cat_df)} transaction(s)")
@@ -1367,7 +1370,8 @@ def page_search(username: str):
     # Results table
     display = filtered[["date", "amount", "category", "description", "added_by"]].copy()
     display["date"] = display["date"].dt.strftime("%Y-%m-%d")
-    display.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+    display["added_by"] = display["added_by"].map(_person_label)
+    display.columns = ["Date", "Amount", "Category", "Description", "Who is this for?"]
     display["Amount"] = filtered["amount"].map("${:,.2f}".format)
     st.dataframe(display, use_container_width=True, hide_index=True)
 
@@ -1512,8 +1516,8 @@ def page_manage_expenses(username: str):
 
             st.divider()
             df_export = pd.DataFrame(writeoffs)[["date", "amount", "category", "description", "added_by"]]
-            df_export["added_by"] = df_export["added_by"].map(lambda x: DISPLAY_NAMES.get(x, x))
-            df_export.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+            df_export["added_by"] = df_export["added_by"].map(_person_label)
+            df_export.columns = ["Date", "Amount", "Category", "Description", "Who is this for?"]
             csv_bytes = df_export.to_csv(index=False).encode("utf-8")
             st.download_button(
                 "⬇️ Export as CSV",
