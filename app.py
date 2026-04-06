@@ -89,6 +89,65 @@ def inject_pwa():
     )
 
 
+def inject_instagram_css():
+    """Instagram-style global UI polish: Inter font, card shadows, bold metrics, sidebar gradient."""
+    st.markdown("""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        html, body, [class*="css"], .stApp, button, input, select, textarea {
+            font-family: 'Inter', sans-serif !important;
+        }
+        /* Bold stat numbers — Instagram follower count style */
+        [data-testid="stMetricValue"] {
+            font-size: 1.65rem !important;
+            font-weight: 800 !important;
+            letter-spacing: -0.5px !important;
+        }
+        [data-testid="stMetricLabel"] {
+            font-size: 0.72rem !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.6px !important;
+            color: #888 !important;
+        }
+        [data-testid="stMetricDelta"] {
+            font-size: 0.78rem !important;
+            font-weight: 500 !important;
+        }
+        /* Pill buttons */
+        [data-testid="baseButton-primary"],
+        [data-testid="baseButton-secondary"] {
+            border-radius: 20px !important;
+            font-weight: 600 !important;
+            font-size: 0.82rem !important;
+        }
+        /* Sidebar gradient */
+        [data-testid="stSidebar"] > div:first-child {
+            background: linear-gradient(180deg, #0d0d1a 0%, #1a0d2e 100%) !important;
+        }
+        /* Input fields */
+        [data-testid="stTextInput"] input,
+        [data-testid="stNumberInput"] input {
+            border-radius: 10px !important;
+        }
+        /* Tabs */
+        [data-testid="stTabs"] [data-baseweb="tab"] {
+            font-weight: 600 !important;
+            font-size: 0.85rem !important;
+        }
+        /* Expander headers */
+        [data-testid="stExpander"] summary {
+            font-weight: 600 !important;
+        }
+        /* Dataframe text */
+        [data-testid="stDataFrame"] {
+            border-radius: 12px !important;
+            overflow: hidden !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+
 def inject_mobile_css():
     """Responsive CSS for mobile devices."""
     st.markdown("""
@@ -797,12 +856,12 @@ def page_monthly_view(username: str):
     _delta_j = _j_total - _w_total
     col_j, col_w = st.columns(2)
     with col_j:
-        st.metric("💙 Jude", f"${_j_total:,.2f}",
+        st.metric("Jude", f"${_j_total:,.2f}",
                   delta=f"${abs(_delta_j):,.2f} {'more' if _delta_j > 0 else 'less'}" if _delta_j != 0 else "Equal",
                   delta_color="off")
         st.caption(f"Recurring: ${_j['recurring']:,.2f} · Manual: ${_j['manual']:,.2f}")
     with col_w:
-        st.metric("❤️ Wincyl", f"${_w_total:,.2f}",
+        st.metric("Wincyl", f"${_w_total:,.2f}",
                   delta=f"${abs(_delta_j):,.2f} {'more' if _delta_j < 0 else 'less'}" if _delta_j != 0 else "Equal",
                   delta_color="off")
         st.caption(f"Recurring: ${_w['recurring']:,.2f} · Manual: ${_w['manual']:,.2f}")
@@ -1098,9 +1157,9 @@ def page_analysis(username: str):
     _ytd_w_pct = (_ytd_pps["wife"]["total"] / _ytd_grand * 100) if _ytd_grand else 0
     st.caption(f"**YTD {_ytd_today.year}** — {_ytd_today.strftime('%b %d')}")
     _ytd_c1, _ytd_c2 = st.columns(2)
-    _ytd_c1.metric("💙 Jude YTD", f"${_ytd_pps['husband']['total']:,.2f}", f"{_ytd_j_pct:.1f}% of total")
+    _ytd_c1.metric("Jude · YTD", f"${_ytd_pps['husband']['total']:,.2f}", f"{_ytd_j_pct:.1f}% of total")
     _ytd_c1.caption(f"Recurring: ${_ytd_pps['husband']['recurring']:,.2f} · Manual: ${_ytd_pps['husband']['manual']:,.2f}")
-    _ytd_c2.metric("❤️ Wincyl YTD", f"${_ytd_pps['wife']['total']:,.2f}", f"{_ytd_w_pct:.1f}% of total")
+    _ytd_c2.metric("Wincyl · YTD", f"${_ytd_pps['wife']['total']:,.2f}", f"{_ytd_w_pct:.1f}% of total")
     _ytd_c2.caption(f"Recurring: ${_ytd_pps['wife']['recurring']:,.2f} · Manual: ${_ytd_pps['wife']['manual']:,.2f}")
 
     st.divider()
@@ -1134,9 +1193,9 @@ def page_analysis(username: str):
         _j_pct = (contrib_pps["husband"]["total"] / _c_grand * 100)
         _w_pct = (contrib_pps["wife"]["total"] / _c_grand * 100)
         c1, c2 = st.columns(2)
-        c1.metric("💙 Jude", f"${contrib_pps['husband']['total']:,.2f}", f"{_j_pct:.1f}% of total")
+        c1.metric("Jude", f"${contrib_pps['husband']['total']:,.2f}", f"{_j_pct:.1f}% of total")
         c1.caption(f"Recurring: ${contrib_pps['husband']['recurring']:,.2f} · Manual: ${contrib_pps['husband']['manual']:,.2f}")
-        c2.metric("❤️ Wincyl", f"${contrib_pps['wife']['total']:,.2f}", f"{_w_pct:.1f}% of total")
+        c2.metric("Wincyl", f"${contrib_pps['wife']['total']:,.2f}", f"{_w_pct:.1f}% of total")
         c2.caption(f"Recurring: ${contrib_pps['wife']['recurring']:,.2f} · Manual: ${contrib_pps['wife']['manual']:,.2f}")
         st.caption(f"Period: {c_start} to {c_end}")
 
@@ -1310,41 +1369,55 @@ def page_recurring(username: str):
     _j_count = sum(1 for r in recurring if r["added_by"] == "husband")
     _w_count = sum(1 for r in recurring if r["added_by"] == "wife")
     rc1, rc2 = st.columns(2)
-    rc1.metric("💙 Jude", f"${_j_rec:,.2f}/mo", f"{_j_count} item{'s' if _j_count != 1 else ''}")
-    rc2.metric("❤️ Wincyl", f"${_w_rec:,.2f}/mo", f"{_w_count} item{'s' if _w_count != 1 else ''}")
+    rc1.metric("Jude", f"${_j_rec:,.2f}/mo", f"{_j_count} item{'s' if _j_count != 1 else ''}")
+    rc2.metric("Wincyl", f"${_w_rec:,.2f}/mo", f"{_w_count} item{'s' if _w_count != 1 else ''}")
     st.divider()
 
     for rec in recurring:
-        col1, col2, col3, col4 = st.columns([4, 2, 1, 1])
-        with col1:
-            schedule_info = ""
-            if rec["frequency"] == "monthly":
-                schedule_info = f" (day {rec['day_of_month']})"
-            elif rec.get("start_date"):
-                schedule_info = f" (from {rec['start_date']})"
+        accent = "#4a8cff" if rec["added_by"] == "husband" else "#ff6b9d"
+        schedule_info = ""
+        if rec["frequency"] == "monthly":
+            schedule_info = f"day {rec['day_of_month']}"
+        elif rec.get("start_date"):
+            schedule_info = f"from {rec['start_date']}"
+        last_iso = rec["last_added_date"]
+        if last_iso:
+            last_dt = date.fromisoformat(last_iso)
+            date_label = f"Next: {last_iso}" if last_dt > date.today() else f"Last: {last_iso}"
+        else:
+            date_label = "Not scheduled yet"
+        freq_display = rec["frequency"].capitalize() + (f" · {schedule_info}" if schedule_info else "")
+        desc_part = f" &nbsp;·&nbsp; <span style='color:#888;font-size:0.8em'>{html.escape(rec['description'])}</span>" if rec['description'] else ""
+
+        card_col, btn_col = st.columns([5, 1])
+        with card_col:
             st.markdown(
-                f"{_person_badge(rec['added_by'])} &nbsp; **{html.escape(rec['name'])}** — ${rec['amount']:,.2f} / {rec['frequency']}{schedule_info}  \n"
-                f"Category: {rec['category']}"
-                + (f" | {html.escape(rec['description'])}" if rec['description'] else ""),
+                f'<div style="background:#1a1a2e;border-radius:14px;padding:14px 18px;'
+                f'margin:6px 0;border-left:3px solid {accent};'
+                f'box-shadow:0 2px 12px rgba(0,0,0,0.3);'
+                f'border-top:1px solid rgba(255,255,255,0.05);'
+                f'border-right:1px solid rgba(255,255,255,0.05);'
+                f'border-bottom:1px solid rgba(255,255,255,0.05)">'
+                f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
+                f'{_person_badge(rec["added_by"])}'
+                f'<span style="font-weight:700;font-size:1rem;color:#f0f0f0">{html.escape(rec["name"])}</span>'
+                f'<span style="margin-left:auto;font-weight:800;font-size:1rem;color:{accent}">${rec["amount"]:,.2f}</span>'
+                f'</div>'
+                f'<div style="color:#888;font-size:0.8em;display:flex;gap:16px;flex-wrap:wrap">'
+                f'<span>📁 {rec["category"]}</span>'
+                f'<span>🔁 {freq_display}</span>'
+                f'<span>🕐 {date_label}</span>'
+                f'{desc_part}'
+                f'</div>'
+                f'</div>',
                 unsafe_allow_html=True,
             )
-        with col2:
-            last_iso = rec["last_added_date"]
-            if last_iso:
-                last_dt = date.fromisoformat(last_iso)
-                today_dt = date.today()
-                if last_dt > today_dt:
-                    st.caption(f"Next: {last_iso}")
-                else:
-                    st.caption(f"Last: {last_iso}")
-            else:
-                st.caption("Not scheduled yet")
-        with col3:
-            if st.button("Edit", key=f"edit_{rec['id']}"):
+        with btn_col:
+            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+            if st.button("Edit", key=f"edit_{rec['id']}", use_container_width=True):
                 st.session_state["editing_recurring_id"] = rec["id"]
                 st.rerun()
-        with col4:
-            if st.button("Deactivate", key=f"deactivate_{rec['id']}"):
+            if st.button("Remove", key=f"deactivate_{rec['id']}", use_container_width=True):
                 deactivate_recurring_expense(rec["id"])
                 st.session_state.pop("recurring_processed", None)
                 st.rerun()
@@ -1502,21 +1575,33 @@ def page_manage_expenses(username: str):
             st.info("No expenses in this range.")
         else:
             for row in rows:
-                writeoff_badge = " 🧾" if row.get("is_tax_writeoff") else ""
-                col_info, col_edit, col_del = st.columns([5, 1, 1])
-                with col_info:
+                writeoff_part = ' &nbsp;<span style="background:#b45309;color:#fde68a;padding:1px 7px;border-radius:8px;font-size:0.72em;font-weight:600">🧾 Write-Off</span>' if row.get("is_tax_writeoff") else ""
+                accent = "#4a8cff" if row["added_by"] == "husband" else "#ff6b9d"
+                card_col, btn_col = st.columns([5, 1])
+                with card_col:
                     st.markdown(
-                        f"{_person_badge(row['added_by'])} &nbsp; "
-                        f"**{row['date']}** | ${row['amount']:,.2f} | "
-                        f"{row['category']} | {row['description'] or '—'}{writeoff_badge}",
+                        f'<div style="background:#1a1a2e;border-radius:14px;padding:12px 16px;'
+                        f'margin:5px 0;border-left:3px solid {accent};'
+                        f'box-shadow:0 2px 10px rgba(0,0,0,0.25);'
+                        f'border-top:1px solid rgba(255,255,255,0.05);'
+                        f'border-right:1px solid rgba(255,255,255,0.05);'
+                        f'border-bottom:1px solid rgba(255,255,255,0.05)">'
+                        f'<div style="display:flex;align-items:center;gap:10px">'
+                        f'{_person_badge(row["added_by"])}'
+                        f'<span style="color:#aaa;font-size:0.8em">{row["date"]}</span>'
+                        f'<span style="font-weight:700;color:#f0f0f0">{row["category"]}</span>'
+                        f'<span style="color:#888;font-size:0.82em;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{row["description"] or "—"}</span>'
+                        f'<span style="font-weight:800;color:{accent};white-space:nowrap">${row["amount"]:,.2f}</span>'
+                        f'{writeoff_part}'
+                        f'</div>'
+                        f'</div>',
                         unsafe_allow_html=True,
                     )
-                with col_edit:
-                    if st.button("Edit", key=f"edit_exp_{row['id']}"):
+                with btn_col:
+                    if st.button("Edit", key=f"edit_exp_{row['id']}", use_container_width=True):
                         st.session_state["editing_expense_id"] = row["id"]
                         st.rerun()
-                with col_del:
-                    if st.button("Delete", key=f"del_exp_{row['id']}"):
+                    if st.button("Delete", key=f"del_exp_{row['id']}", use_container_width=True):
                         delete_expense(row["id"])
                         st.success("Expense deleted!")
                         st.rerun()
@@ -1818,6 +1903,7 @@ def page_jueds_quantitative(username: str) -> None:
 def main():
     init_db()
     inject_pwa()
+    inject_instagram_css()
     inject_mobile_css()
     inject_romantic_css()
     authenticator, name, auth_status, username = authenticate()

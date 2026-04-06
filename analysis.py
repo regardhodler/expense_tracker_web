@@ -724,23 +724,35 @@ def per_person_summary(rows: list[dict]) -> dict:
 
 
 def _person_badge(added_by: str) -> str:
-    """HTML pill badge — use with unsafe_allow_html=True in Streamlit."""
+    """Circular letter avatar — use with unsafe_allow_html=True in Streamlit."""
     if added_by == "husband":
         return (
-            '<span style="background:#3498db;color:white;padding:1px 8px;'
-            'border-radius:10px;font-size:11px;font-weight:600">💙 Jude</span>'
+            '<span style="display:inline-flex;align-items:center;justify-content:center;'
+            'width:22px;height:22px;border-radius:50%;'
+            'background:linear-gradient(135deg,#4a8cff,#0055cc);'
+            'color:white;font-size:11px;font-weight:700;'
+            'box-shadow:0 2px 6px rgba(74,140,255,0.45);'
+            'vertical-align:middle;flex-shrink:0">J</span>'
+            '<span style="margin-left:6px;font-weight:600;font-size:0.85em;'
+            'color:#a0c4ff;vertical-align:middle">Jude</span>'
         )
     elif added_by == "wife":
         return (
-            '<span style="background:#c0392b;color:white;padding:1px 8px;'
-            'border-radius:10px;font-size:11px;font-weight:600">❤️ Wincyl</span>'
+            '<span style="display:inline-flex;align-items:center;justify-content:center;'
+            'width:22px;height:22px;border-radius:50%;'
+            'background:linear-gradient(135deg,#ff6b9d,#c44dff);'
+            'color:white;font-size:11px;font-weight:700;'
+            'box-shadow:0 2px 6px rgba(255,107,157,0.45);'
+            'vertical-align:middle;flex-shrink:0">W</span>'
+            '<span style="margin-left:6px;font-weight:600;font-size:0.85em;'
+            'color:#ffb3d1;vertical-align:middle">Wincyl</span>'
         )
     return added_by
 
 
 def _person_label(added_by: str) -> str:
-    """Plain-text emoji label for dataframe cells (no HTML rendering)."""
-    return {"husband": "💙 Jude", "wife": "❤️ Wincyl"}.get(added_by, added_by)
+    """Plain-text label for dataframe cells (no HTML rendering)."""
+    return {"husband": "J · Jude", "wife": "W · Wincyl"}.get(added_by, added_by)
 
 
 def get_who_spends_more(df: pd.DataFrame) -> pd.DataFrame:
