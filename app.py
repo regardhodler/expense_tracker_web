@@ -359,7 +359,6 @@ def page_dashboard(username: str):
     )
 
     # 3. Individual Contribution Bars
-    from analysis import DISPLAY_NAMES
     h_pts = lp["points"]["husband"]
     w_pts = lp["points"]["wife"]
     total_pts = lp["combined_points"]
@@ -728,7 +727,6 @@ def page_add_expense(username: str):
                 else:
                     st.error(msg)
             else:
-                from analysis import DISPLAY_NAMES
                 added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
                 add_expense(exp_date, amount, category, description.strip(), added_by, is_writeoff)
                 st.success(f"Added ${amount:,.2f} for {category} on {exp_date}!")
@@ -1212,7 +1210,6 @@ def page_recurring(username: str):
                     e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
                 e_description = st.text_input("Description (optional)", value=edit_rec["description"] or "",
                                               max_chars=MAX_DESCRIPTION_LENGTH)
-                from analysis import DISPLAY_NAMES
                 person_options = ["Jude", "Wincyl"]
                 current_person = DISPLAY_NAMES.get(edit_rec.get("added_by", ""), "Jude")
                 e_added_for = st.selectbox("Who is this for?", person_options,
@@ -1290,7 +1287,6 @@ def page_recurring(username: str):
             if not name.strip():
                 st.error("Name is required.")
             else:
-                from analysis import DISPLAY_NAMES
                 added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
                 add_recurring_expense(
                     name.strip(), amount, category, description.strip(),
