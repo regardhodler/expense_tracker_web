@@ -146,10 +146,23 @@ def inject_instagram_css():
             font-size: 0.82rem !important;
         }
         /* Sidebar — default Streamlit background (no override) */
-        /* Input fields */
+        /* Input fields — light text on dark bg */
         [data-testid="stTextInput"] input,
-        [data-testid="stNumberInput"] input {
+        [data-testid="stNumberInput"] input,
+        [data-testid="stDateInput"] input {
             border-radius: 10px !important;
+            color: #f0f0f0 !important;
+            background-color: #1a1a2e !important;
+            border: 1px solid rgba(255,255,255,0.15) !important;
+        }
+        [data-testid="stSelectbox"] > div > div,
+        [data-testid="stSelectbox"] span {
+            color: #f0f0f0 !important;
+            background-color: #1a1a2e !important;
+        }
+        /* Placeholder text */
+        [data-testid="stTextInput"] input::placeholder {
+            color: #888 !important;
         }
         /* Tabs */
         [data-testid="stTabs"] [data-baseweb="tab"] {
