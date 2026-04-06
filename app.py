@@ -666,7 +666,8 @@ def page_dashboard(username: str):
     if recent:
         df = pd.DataFrame(recent)
         df_display = df[["date", "amount", "category", "description", "added_by"]].copy()
-        df_display.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+        df_display["added_by"] = df_display["added_by"].map(_person_label)
+        df_display.columns = ["Date", "Amount", "Category", "Description", "Who is this for?"]
         df_display["Amount"] = df_display["Amount"].map("${:,.2f}".format)
         st.dataframe(df_display, use_container_width=True, hide_index=True)
     else:
@@ -849,10 +850,11 @@ def page_monthly_view(username: str):
                         icon = "&#x21BB; " if is_recurring else ""
                         tooltip = (desc.replace("&", "&amp;").replace("<", "&lt;")
                                       .replace(">", "&gt;").replace('"', "&quot;"))
+                        _badge = _person_badge(exp.get("added_by", ""))
                         html += (
                             f'<div title="{tooltip}" style="color:{color};white-space:nowrap;overflow:hidden;'
                             f'text-overflow:ellipsis;font-size:0.75em;line-height:1.4;cursor:default">'
-                            f'{icon}${amt:,.0f} {cat}</div>'
+                            f'{icon}${amt:,.0f} {cat} {_badge}</div>'
                         )
                     if len(day_expenses) > 1:
                         day_total = day_expenses["amount"].sum()
@@ -891,7 +893,7 @@ def page_monthly_view(username: str):
                 with c1:
                     st.markdown(f"**{exp['category']}**")
                     st.caption(exp.get("description", "") or "No description")
-                    st.caption(f"Added by: {exp['added_by']}")
+                    st.markdown(f"For: {_person_badge(exp['added_by'])}", unsafe_allow_html=True)
                 with c2:
                     st.markdown(f"**${exp['amount']:,.2f}**")
 
@@ -921,7 +923,8 @@ def page_monthly_view(username: str):
         with st.expander("All expenses this month"):
             display = df[["date", "amount", "category", "description", "added_by"]].copy()
             display["date"] = display["date"].dt.strftime("%Y-%m-%d")
-            display.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+            display["added_by"] = display["added_by"].map(_person_label)
+            display.columns = ["Date", "Amount", "Category", "Description", "Who is this for?"]
             st.dataframe(display, use_container_width=True, hide_index=True)
 
 
@@ -1279,9 +1282,10 @@ def page_recurring(username: str):
             elif rec.get("start_date"):
                 schedule_info = f" (from {rec['start_date']})"
             st.markdown(
-                f"**{rec['name']}** — ${rec['amount']:,.2f} / {rec['frequency']}{schedule_info}  \n"
+                f"{_person_badge(rec['added_by'])} &nbsp; **{rec['name']}** — ${rec['amount']:,.2f} / {rec['frequency']}{schedule_info}  \n"
                 f"Category: {rec['category']}"
-                + (f" | {rec['description']}" if rec['description'] else "")
+                + (f" | {rec['description']}" if rec['description'] else ""),
+                unsafe_allow_html=True,
             )
         with col2:
             last = rec["last_added_date"] or "Never"
