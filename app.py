@@ -166,7 +166,16 @@ def inject_instagram_css():
         }
         /* Checkbox label */
         [data-testid="stCheckbox"] label,
-        [data-testid="stCheckbox"] span {
+        [data-testid="stCheckbox"] span,
+        [data-testid="stCheckbox"] p,
+        .stCheckbox label,
+        .stCheckbox span {
+            color: #f0f0f0 !important;
+        }
+        /* Form labels and widget text */
+        [data-testid="stForm"] label,
+        [data-testid="stForm"] p,
+        [data-testid="stForm"] span:not([style]) {
             color: #f0f0f0 !important;
         }
         /* Tabs */
