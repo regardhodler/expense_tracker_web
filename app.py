@@ -121,10 +121,7 @@ def inject_instagram_css():
             font-weight: 600 !important;
             font-size: 0.82rem !important;
         }
-        /* Sidebar gradient */
-        [data-testid="stSidebar"] > div:first-child {
-            background: linear-gradient(180deg, #0d0d1a 0%, #1a0d2e 100%) !important;
-        }
+        /* Sidebar — default Streamlit background (no override) */
         /* Input fields */
         [data-testid="stTextInput"] input,
         [data-testid="stNumberInput"] input {
