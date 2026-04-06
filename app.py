@@ -164,6 +164,11 @@ def inject_instagram_css():
         [data-testid="stTextInput"] input::placeholder {
             color: #888 !important;
         }
+        /* Checkbox label */
+        [data-testid="stCheckbox"] label,
+        [data-testid="stCheckbox"] span {
+            color: #f0f0f0 !important;
+        }
         /* Tabs */
         [data-testid="stTabs"] [data-baseweb="tab"] {
             font-weight: 600 !important;
