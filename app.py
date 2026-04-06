@@ -1,6 +1,7 @@
 """Expense Tracker — Streamlit app for couples to track shared expenses."""
 
 import calendar
+import html
 import io
 from datetime import date, datetime
 
@@ -1282,9 +1283,9 @@ def page_recurring(username: str):
             elif rec.get("start_date"):
                 schedule_info = f" (from {rec['start_date']})"
             st.markdown(
-                f"{_person_badge(rec['added_by'])} &nbsp; **{rec['name']}** — ${rec['amount']:,.2f} / {rec['frequency']}{schedule_info}  \n"
+                f"{_person_badge(rec['added_by'])} &nbsp; **{html.escape(rec['name'])}** — ${rec['amount']:,.2f} / {rec['frequency']}{schedule_info}  \n"
                 f"Category: {rec['category']}"
-                + (f" | {rec['description']}" if rec['description'] else ""),
+                + (f" | {html.escape(rec['description'])}" if rec['description'] else ""),
                 unsafe_allow_html=True,
             )
         with col2:
