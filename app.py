@@ -113,97 +113,6 @@ def inject_pwa():
     )
 
 
-def inject_instagram_css():
-    """Instagram-style global UI polish: Inter font, card shadows, bold metrics, sidebar gradient."""
-    st.markdown("""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-        html, body, [class*="css"], .stApp, button, input, select, textarea {
-            font-family: 'Inter', sans-serif !important;
-        }
-        /* Bold stat numbers — Instagram follower count style */
-        [data-testid="stMetricValue"] {
-            font-size: 1.65rem !important;
-            font-weight: 800 !important;
-            letter-spacing: -0.5px !important;
-        }
-        [data-testid="stMetricLabel"] {
-            font-size: 0.72rem !important;
-            font-weight: 600 !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.6px !important;
-            color: #888 !important;
-        }
-        [data-testid="stMetricDelta"] {
-            font-size: 0.78rem !important;
-            font-weight: 500 !important;
-        }
-        /* Pill buttons */
-        [data-testid="baseButton-primary"],
-        [data-testid="baseButton-secondary"] {
-            border-radius: 20px !important;
-            font-weight: 600 !important;
-            font-size: 0.82rem !important;
-        }
-        /* Sidebar — default Streamlit background (no override) */
-        /* Input fields — light text on dark bg */
-        [data-testid="stTextInput"] input,
-        [data-testid="stNumberInput"] input,
-        [data-testid="stDateInput"] input {
-            border-radius: 10px !important;
-            color: #f0f0f0 !important;
-            background-color: #1a1a2e !important;
-            border: 1px solid rgba(255,255,255,0.15) !important;
-        }
-        [data-testid="stSelectbox"] > div > div,
-        [data-testid="stSelectbox"] span {
-            color: #f0f0f0 !important;
-            background-color: #1a1a2e !important;
-        }
-        /* Placeholder text */
-        [data-testid="stTextInput"] input::placeholder {
-            color: #888 !important;
-        }
-        /* Checkbox label */
-        [data-testid="stCheckbox"] label,
-        [data-testid="stCheckbox"] span,
-        [data-testid="stCheckbox"] p,
-        .stCheckbox label,
-        .stCheckbox span {
-            color: #f0f0f0 !important;
-        }
-        /* Form labels and widget text */
-        [data-testid="stForm"] label,
-        [data-testid="stForm"] p,
-        [data-testid="stForm"] span:not([style]) {
-            color: #f0f0f0 !important;
-        }
-        /* Tabs */
-        [data-testid="stTabs"] [data-baseweb="tab"] {
-            font-weight: 600 !important;
-            font-size: 0.85rem !important;
-        }
-        /* Expander headers */
-        [data-testid="stExpander"] summary {
-            font-weight: 600 !important;
-        }
-        /* Dataframe text */
-        [data-testid="stDataFrame"] {
-            border-radius: 12px !important;
-            overflow: hidden !important;
-        }
-        /* Form card */
-        [data-testid="stForm"] {
-            background: #2a2a3e !important;
-            border-radius: 18px !important;
-            padding: 8px 20px 16px !important;
-            border: 1px solid rgba(255,255,255,0.08) !important;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.3) !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-
 def inject_mobile_css():
     """Responsive CSS for mobile devices."""
     st.markdown("""
@@ -1989,7 +1898,6 @@ def page_jueds_quantitative(username: str) -> None:
 def main():
     init_db()
     inject_pwa()
-    inject_instagram_css()
     inject_mobile_css()
     inject_romantic_css()
     authenticator, name, auth_status, username = authenticate()
