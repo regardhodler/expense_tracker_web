@@ -37,6 +37,30 @@ from visualization import (
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
 
 # ---------------------------------------------------------------------------
+# Category color palette (shared across pages)
+# ---------------------------------------------------------------------------
+
+CAT_COLORS = {
+    "Housing": "#4CAF50",
+    "Food": "#FF9800",
+    "Health": "#E91E63",
+    "Transportation": "#2196F3",
+    "Personal": "#9C27B0",
+    "Entertainment": "#00BCD4",
+    "Utilities": "#FF5722",
+    "Others": "#607D8B",
+}
+
+def _cat_dot(category: str) -> str:
+    """Tiny colored circle for category — use with unsafe_allow_html=True."""
+    color = CAT_COLORS.get(category, "#888")
+    return (
+        f'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;'
+        f'background:{color};margin-right:5px;vertical-align:middle;flex-shrink:0"></span>'
+    )
+
+
+# ---------------------------------------------------------------------------
 # Cached dashboard queries (short TTL to avoid stale data on reruns)
 # ---------------------------------------------------------------------------
 
@@ -140,6 +164,14 @@ def inject_instagram_css():
         [data-testid="stDataFrame"] {
             border-radius: 12px !important;
             overflow: hidden !important;
+        }
+        /* Form card */
+        [data-testid="stForm"] {
+            background: #2a2a3e !important;
+            border-radius: 18px !important;
+            padding: 8px 20px 16px !important;
+            border: 1px solid rgba(255,255,255,0.08) !important;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.3) !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -736,6 +768,31 @@ def page_dashboard(username: str):
 def page_add_expense(username: str):
     st.header("Add Expense")
 
+    # Last-added confirmation card
+    if "_last_added" in st.session_state:
+        la = st.session_state["_last_added"]
+        _la_color = "#4a8cff" if la["added_by"] == "husband" else "#ff6b9d"
+        _la_letter = "J" if la["added_by"] == "husband" else "W"
+        _la_cat_color = CAT_COLORS.get(la["category"], "#888")
+        st.markdown(
+            f'<div style="background:linear-gradient(135deg,#1e2d1e,#162616);'
+            f'border-radius:14px;padding:14px 20px;margin-bottom:16px;'
+            f'border-left:4px solid #4ade80;border:1px solid #2d4a2d">'
+            f'<div style="display:flex;align-items:center;gap:10px">'
+            f'<span style="font-size:1.2em">✅</span>'
+            f'<div>'
+            f'<div style="font-weight:700;color:#4ade80;font-size:0.9em">Added successfully</div>'
+            f'<div style="color:#ccc;font-size:0.95em;margin-top:2px">'
+            f'<span style="color:{_la_cat_color}">●</span> '
+            f'<strong>${la["amount"]:,.2f}</strong> · {la["category"]}'
+            f'{(" · " + la["description"]) if la["description"] else ""}'
+            f' · <span style="color:{_la_color};font-weight:700">{_la_letter}</span> {la["for_name"]}'
+            f'</div>'
+            f'<div style="color:#666;font-size:0.78em;margin-top:2px">{la["date"]}</div>'
+            f'</div></div></div>',
+            unsafe_allow_html=True,
+        )
+
     with st.form("add_expense_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
@@ -785,8 +842,14 @@ def page_add_expense(username: str):
             else:
                 added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
                 add_expense(exp_date, amount, category, description.strip(), added_by, is_writeoff)
-                st.success(f"Added ${amount:,.2f} for {category} on {exp_date}!")
+                st.toast(f"✅ ${amount:,.2f} · {category} added!")
                 st.session_state.pop("_confirm_duplicate", None)
+                st.session_state["_last_added"] = {
+                    "amount": amount, "category": category,
+                    "description": description.strip(),
+                    "date": str(exp_date), "added_by": added_by,
+                    "for_name": added_for,
+                }
                 st.session_state["_date_night_pending"] = (exp_date, amount)
 
     # --- Date Night Tagging (outside form so it survives rerun) ---
@@ -821,7 +884,7 @@ def page_add_expense(username: str):
                 add_date_night(pending_date, dn_where, dn_how, pending_amount)
                 st.session_state.pop("_date_night_pending", None)
                 st.balloons()
-                st.success(f"💕 {pending_date.strftime('%B %d')} is now a date night! 🌹")
+                st.toast(f"💕 {pending_date.strftime('%B %d')} is now a date night! 🌹")
                 st.rerun()
         if st.button("Skip", key="_dn_skip", type="secondary"):
             st.session_state.pop("_date_night_pending", None)
@@ -866,17 +929,6 @@ def page_monthly_view(username: str):
     # Calendar grid
     st.subheader(f"{calendar.month_name[month]} {year}")
 
-    CATEGORY_COLORS = {
-        "Housing": "#4CAF50",
-        "Food": "#FF9800",
-        "Health": "#E91E63",
-        "Transportation": "#2196F3",
-        "Personal": "#9C27B0",
-        "Entertainment": "#00BCD4",
-        "Utilities": "#FF5722",
-        "Others": "#607D8B",
-    }
-
     cal = calendar.Calendar(firstweekday=6)  # Sunday first
     weeks = cal.monthdayscalendar(year, month)
 
@@ -918,7 +970,7 @@ def page_monthly_view(username: str):
                 if not day_expenses.empty:
                     for _, exp in day_expenses.iterrows():
                         cat = exp["category"]
-                        color = CATEGORY_COLORS.get(cat, "#999")
+                        color = CAT_COLORS.get(cat, "#999")
                         amt = exp["amount"]
                         desc = exp.get("description", "") or ""
                         is_recurring = desc.startswith("[Recurring]")
@@ -1216,7 +1268,7 @@ def page_budgets(username: str):
         notes = st.text_area("Comments (optional)", placeholder="e.g. Includes groceries and dining out", max_chars=300)
         if st.form_submit_button("Set Budget", use_container_width=True):
             set_budget(category, limit, username, notes)
-            st.success(f"Budget for {category} set to ${limit:,.2f}")
+            st.toast(f"✅ Budget for {category} set to ${limit:,.2f}")
 
     # Show current budgets with progress
     st.subheader("Current Month Progress")
@@ -1311,7 +1363,7 @@ def page_recurring(username: str):
                         st.session_state.pop("editing_recurring_id", None)
                         st.session_state.pop("edit_freq", None)
                         st.session_state.pop("recurring_processed", None)
-                        st.success("Recurring expense updated!")
+                        st.toast("✅ Recurring expense updated!")
                         st.rerun()
                 if cancel:
                     st.session_state.pop("editing_recurring_id", None)
@@ -1357,7 +1409,7 @@ def page_recurring(username: str):
                     frequency, day_of_month, added_by, start_date,
                 )
                 st.session_state.pop("recurring_processed", None)
-                st.success(f"Added recurring: {name} — ${amount:,.2f} ({frequency})")
+                st.toast(f"✅ Added recurring: {name} — ${amount:,.2f} ({frequency})")
                 st.rerun()
 
     # --- List existing ---
@@ -1409,7 +1461,7 @@ def page_recurring(username: str):
                 f'<span style="margin-left:auto;font-weight:800;font-size:1rem;color:{accent}">${rec["amount"]:,.2f}</span>'
                 f'</div>'
                 f'<div style="color:#888;font-size:0.8em;display:flex;gap:16px;flex-wrap:wrap">'
-                f'<span>📁 {rec["category"]}</span>'
+                f'<span>{_cat_dot(rec["category"])}{rec["category"]}</span>'
                 f'<span>🔁 {freq_display}</span>'
                 f'<span>🕐 {date_label}</span>'
                 f'{desc_part}'
@@ -1555,7 +1607,7 @@ def page_manage_expenses(username: str):
                     e_added_by = next((k for k, v in DISPLAY_NAMES.items() if v == e_added_for), expense.get("added_by"))
                     update_expense(editing_id, e_date, e_amount, e_category, e_description.strip(), e_writeoff, e_added_by)
                     st.session_state.pop("editing_expense_id", None)
-                    st.success("Expense updated!")
+                    st.toast("✅ Expense updated!")
                     st.rerun()
             if cancel:
                 st.session_state.pop("editing_expense_id", None)
@@ -1594,7 +1646,7 @@ def page_manage_expenses(username: str):
                         f'<div style="display:flex;align-items:center;gap:10px">'
                         f'{_person_badge(row["added_by"])}'
                         f'<span style="color:#aaa;font-size:0.8em">{row["date"]}</span>'
-                        f'<span style="font-weight:700;color:#f0f0f0">{row["category"]}</span>'
+                        f'<span style="font-weight:700;color:#f0f0f0">{_cat_dot(row["category"])}{row["category"]}</span>'
                         f'<span style="color:#888;font-size:0.82em;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{row["description"] or "—"}</span>'
                         f'<span style="font-weight:800;color:{accent};white-space:nowrap">${row["amount"]:,.2f}</span>'
                         f'{writeoff_part}'
@@ -1608,7 +1660,7 @@ def page_manage_expenses(username: str):
                         st.rerun()
                     if st.button("Delete", key=f"del_exp_{row['id']}", use_container_width=True):
                         delete_expense(row["id"])
-                        st.success("Expense deleted!")
+                        st.toast("🗑️ Expense deleted")
                         st.rerun()
 
     with tab_tax:
@@ -1697,7 +1749,7 @@ def page_savings_goals(username: str):
                 else:
                     cat_val = None if g_category == "None" else g_category
                     add_savings_goal(g_name.strip(), g_target, cat_val, g_emoji, username)
-                    st.success(f"Goal '{g_name.strip()}' added!")
+                    st.toast(f"✅ Goal '{g_name.strip()}' added!")
                     st.rerun()
 
     goals = get_savings_goals()
@@ -1742,12 +1794,12 @@ def page_savings_goals(username: str):
                     if st.button("Save", key=f"save_{g['id']}", use_container_width=True):
                         new_total = round(g["current_amount"] + add_amount, 2)
                         update_savings_goal_progress(g["id"], new_total)
-                        st.success(f"+${add_amount:,.2f} added!")
+                        st.toast(f"✅ +${add_amount:,.2f} added!")
                         st.rerun()
                 with act_col3:
                     if st.button("Complete", key=f"complete_{g['id']}", use_container_width=True):
                         complete_savings_goal(g["id"])
-                        st.success("Goal completed! 🎉")
+                        st.toast("🎉 Goal completed!")
                         st.rerun()
 
             del_col, _ = st.columns([1, 5])
@@ -1793,7 +1845,7 @@ def page_jueds_quantitative(username: str) -> None:
             if st.button("Add", key="add_income_btn", use_container_width=True):
                 if income_amount > 0:
                     add_jude_income(selected_year, income_month_num, income_amount, income_label or None)
-                    st.success("Income logged.")
+                    st.toast("✅ Income logged")
                     st.rerun()
 
         # Show existing entries for the selected month
