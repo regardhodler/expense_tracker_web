@@ -800,7 +800,8 @@ def page_add_expense(username: str):
             f'<strong>${la["amount"]:,.2f}</strong> · {la["category"]}'
             f'{(" · " + la["description"]) if la["description"] else ""}'
             f' · <span style="color:{_la_color};font-weight:700">{_la_letter}</span> {la["for_name"]}'
-            f'</div>'
+            + ('  <span style="background:#b45309;color:#fde68a;padding:1px 7px;border-radius:8px;font-size:0.72em;font-weight:600">🧾 Write-Off</span>' if la.get("is_writeoff") else "")
+            + '</div>'
             f'<div style="color:#666;font-size:0.78em;margin-top:2px">{la["date"]}</div>'
             f'</div></div></div>',
             unsafe_allow_html=True,
@@ -861,7 +862,7 @@ def page_add_expense(username: str):
                     "amount": amount, "category": category,
                     "description": description.strip(),
                     "date": str(exp_date), "added_by": added_by,
-                    "for_name": added_for,
+                    "for_name": added_for, "is_writeoff": is_writeoff,
                 }
                 st.session_state["_date_night_pending"] = (exp_date, amount)
 
@@ -1002,7 +1003,7 @@ def page_monthly_view(username: str):
                         html += (
                             f'<div title="{tooltip}" style="color:{color};white-space:nowrap;overflow:hidden;'
                             f'text-overflow:ellipsis;font-size:0.75em;line-height:1.4;cursor:default">'
-                            f'{_letter_badge}{icon}${amt:,.0f} {cat}</div>'
+                            f'{_letter_badge}{icon}${amt:,.0f} {cat}{"🧾" if exp.get("is_tax_writeoff") else ""}</div>'
                         )
                     if len(day_expenses) > 1:
                         day_total = day_expenses["amount"].sum()
@@ -1039,7 +1040,8 @@ def page_monthly_view(username: str):
             with st.container(border=True):
                 c1, c2 = st.columns([3, 1])
                 with c1:
-                    st.markdown(f"**{exp['category']}**")
+                    _wo_badge = ' <span style="background:#b45309;color:#fde68a;padding:1px 7px;border-radius:8px;font-size:0.72em;font-weight:600">🧾 Write-Off</span>' if exp.get("is_tax_writeoff") else ""
+                    st.markdown(f"{_cat_dot(exp['category'])}<strong>{exp['category']}</strong>{_wo_badge}", unsafe_allow_html=True)
                     st.caption(exp.get("description", "") or "No description")
                     st.markdown(f"For: {_person_badge(exp['added_by'])}", unsafe_allow_html=True)
                 with c2:
