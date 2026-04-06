@@ -925,11 +925,19 @@ def page_monthly_view(username: str):
                         icon = "&#x21BB; " if is_recurring else ""
                         tooltip = (desc.replace("&", "&amp;").replace("<", "&lt;")
                                       .replace(">", "&gt;").replace('"', "&quot;"))
-                        _badge = _person_badge(exp.get("added_by", ""))
+                        _who = exp.get("added_by", "")
+                        _letter = "J" if _who == "husband" else ("W" if _who == "wife" else "")
+                        _lcolor = "#4a8cff" if _who == "husband" else "#ff6b9d"
+                        _letter_badge = (
+                            f'<span style="display:inline-flex;align-items:center;justify-content:center;'
+                            f'width:13px;height:13px;border-radius:50%;background:{_lcolor};'
+                            f'color:white;font-size:8px;font-weight:700;vertical-align:middle;'
+                            f'flex-shrink:0">{_letter}</span> '
+                        ) if _letter else ""
                         html += (
                             f'<div title="{tooltip}" style="color:{color};white-space:nowrap;overflow:hidden;'
                             f'text-overflow:ellipsis;font-size:0.75em;line-height:1.4;cursor:default">'
-                            f'{icon}${amt:,.0f} {cat} {_badge}</div>'
+                            f'{_letter_badge}{icon}${amt:,.0f} {cat}</div>'
                         )
                     if len(day_expenses) > 1:
                         day_total = day_expenses["amount"].sum()
@@ -1389,12 +1397,12 @@ def page_recurring(username: str):
         card_col, btn_col = st.columns([5, 1])
         with card_col:
             st.markdown(
-                f'<div style="background:#1a1a2e;border-radius:14px;padding:14px 18px;'
+                f'<div style="background:#2a2a3e;border-radius:14px;padding:14px 18px;'
                 f'margin:6px 0;border-left:3px solid {accent};'
-                f'box-shadow:0 2px 12px rgba(0,0,0,0.3);'
-                f'border-top:1px solid rgba(255,255,255,0.05);'
-                f'border-right:1px solid rgba(255,255,255,0.05);'
-                f'border-bottom:1px solid rgba(255,255,255,0.05)">'
+                f'box-shadow:0 2px 12px rgba(0,0,0,0.2);'
+                f'border-top:1px solid rgba(255,255,255,0.07);'
+                f'border-right:1px solid rgba(255,255,255,0.07);'
+                f'border-bottom:1px solid rgba(255,255,255,0.07)">'
                 f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
                 f'{_person_badge(rec["added_by"])}'
                 f'<span style="font-weight:700;font-size:1rem;color:#f0f0f0">{html.escape(rec["name"])}</span>'
@@ -1577,12 +1585,12 @@ def page_manage_expenses(username: str):
                 card_col, btn_col = st.columns([5, 1])
                 with card_col:
                     st.markdown(
-                        f'<div style="background:#1a1a2e;border-radius:14px;padding:12px 16px;'
+                        f'<div style="background:#2a2a3e;border-radius:14px;padding:12px 16px;'
                         f'margin:5px 0;border-left:3px solid {accent};'
-                        f'box-shadow:0 2px 10px rgba(0,0,0,0.25);'
-                        f'border-top:1px solid rgba(255,255,255,0.05);'
-                        f'border-right:1px solid rgba(255,255,255,0.05);'
-                        f'border-bottom:1px solid rgba(255,255,255,0.05)">'
+                        f'box-shadow:0 2px 10px rgba(0,0,0,0.2);'
+                        f'border-top:1px solid rgba(255,255,255,0.07);'
+                        f'border-right:1px solid rgba(255,255,255,0.07);'
+                        f'border-bottom:1px solid rgba(255,255,255,0.07)">'
                         f'<div style="display:flex;align-items:center;gap:10px">'
                         f'{_person_badge(row["added_by"])}'
                         f'<span style="color:#aaa;font-size:0.8em">{row["date"]}</span>'
