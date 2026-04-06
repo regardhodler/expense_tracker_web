@@ -27,7 +27,7 @@ from analysis import (
     love_points, LOVE_TIERS, LOVE_MESSAGES, canadian_comparison, DISPLAY_NAMES,
     get_streaks, get_monthly_challenges, get_achievements,
     get_love_history, get_who_spends_more, aggregate_jueds_month,
-    _person_badge, _person_label,
+    _person_badge, _person_label, per_person_summary,
 )
 from visualization import (
     pie_chart, bar_chart, monthly_trend_chart, comparison_bar_chart,
@@ -791,6 +791,24 @@ def page_monthly_view(username: str):
     rows = get_expenses_between(month_start, month_end)
     df = rows_to_dataframe(rows)
 
+    # --- Per-person summary ---
+    _pps = per_person_summary(rows)
+    _j = _pps["husband"]
+    _w = _pps["wife"]
+    _j_total, _w_total = _j["total"], _w["total"]
+    _delta_j = _j_total - _w_total
+    col_j, col_w = st.columns(2)
+    with col_j:
+        st.metric("💙 Jude", f"${_j_total:,.2f}",
+                  delta=f"${abs(_delta_j):,.2f} {'more' if _delta_j > 0 else 'less'}" if _delta_j != 0 else "Equal",
+                  delta_color="off")
+        st.caption(f"Recurring: ${_j['recurring']:,.2f} · Manual: ${_j['manual']:,.2f}")
+    with col_w:
+        st.metric("❤️ Wincyl", f"${_w_total:,.2f}",
+                  delta=f"${abs(_delta_j):,.2f} {'more' if _delta_j < 0 else 'less'}" if _delta_j != 0 else "Equal",
+                  delta_color="off")
+        st.caption(f"Recurring: ${_w['recurring']:,.2f} · Manual: ${_w['manual']:,.2f}")
+
     # Calendar grid
     st.subheader(f"{calendar.month_name[month]} {year}")
 
@@ -913,7 +931,8 @@ def page_monthly_view(username: str):
     if not df.empty:
         csv_df = df[["date", "amount", "category", "description", "added_by"]].copy()
         csv_df["date"] = csv_df["date"].dt.strftime("%Y-%m-%d")
-        csv_df.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+        csv_df["added_by"] = csv_df["added_by"].map(_person_label)
+        csv_df.columns = ["Date", "Amount", "Category", "Description", "For"]
         st.download_button(
             "Download CSV",
             data=_df_to_csv_bytes(csv_df),
@@ -1001,7 +1020,8 @@ def page_analysis(username: str):
     # CSV download for this period
     csv_df = df[["date", "amount", "category", "description", "added_by"]].copy()
     csv_df["date"] = csv_df["date"].dt.strftime("%Y-%m-%d")
-    csv_df.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+    csv_df["added_by"] = csv_df["added_by"].map(_person_label)
+    csv_df.columns = ["Date", "Amount", "Category", "Description", "For"]
     st.download_button(
         "Download CSV",
         data=_df_to_csv_bytes(csv_df),
@@ -1070,6 +1090,22 @@ def page_analysis(username: str):
     # --- Contributions Section ---
     st.divider()
     st.subheader("💰 Contributions")
+
+    # Always-visible YTD snapshot
+    _ytd_today = date.today()
+    _ytd_rows = get_expenses_between(_ytd_today.replace(month=1, day=1), _ytd_today)
+    _ytd_pps = per_person_summary(_ytd_rows)
+    _ytd_grand = _ytd_pps["husband"]["total"] + _ytd_pps["wife"]["total"]
+    _ytd_j_pct = (_ytd_pps["husband"]["total"] / _ytd_grand * 100) if _ytd_grand else 0
+    _ytd_w_pct = (_ytd_pps["wife"]["total"] / _ytd_grand * 100) if _ytd_grand else 0
+    st.caption(f"**YTD {_ytd_today.year}** — {_ytd_today.strftime('%b %d')}")
+    _ytd_c1, _ytd_c2 = st.columns(2)
+    _ytd_c1.metric("💙 Jude YTD", f"${_ytd_pps['husband']['total']:,.2f}", f"{_ytd_j_pct:.1f}% of total")
+    _ytd_c1.caption(f"Recurring: ${_ytd_pps['husband']['recurring']:,.2f} · Manual: ${_ytd_pps['husband']['manual']:,.2f}")
+    _ytd_c2.metric("❤️ Wincyl YTD", f"${_ytd_pps['wife']['total']:,.2f}", f"{_ytd_w_pct:.1f}% of total")
+    _ytd_c2.caption(f"Recurring: ${_ytd_pps['wife']['recurring']:,.2f} · Manual: ${_ytd_pps['wife']['manual']:,.2f}")
+
+    st.divider()
     contrib_options = ["Weekly", "Monthly", "6 Months", "1 Year", "YTD"]
     contrib_period = st.selectbox("Filter by", contrib_options, key="contrib_filter")
 
@@ -1091,24 +1127,19 @@ def page_analysis(username: str):
         c_end = today
 
     contrib_rows = get_expenses_between(c_start, c_end)
-    contrib_df = rows_to_dataframe(contrib_rows)
+    contrib_pps = per_person_summary(contrib_rows)
 
-    if contrib_df.empty:
+    _c_grand = contrib_pps["husband"]["total"] + contrib_pps["wife"]["total"]
+    if _c_grand == 0:
         st.info(f"No expenses found for {contrib_period}.")
     else:
-        from analysis import DISPLAY_NAMES
-        by_person = contrib_df.groupby("added_by")["amount"].sum().reset_index()
-        by_person.columns = ["Person", "Total"]
-        grand_total = by_person["Total"].sum()
-        by_person["% Share"] = (by_person["Total"] / grand_total * 100).round(1)
-
+        _j_pct = (contrib_pps["husband"]["total"] / _c_grand * 100)
+        _w_pct = (contrib_pps["wife"]["total"] / _c_grand * 100)
         c1, c2 = st.columns(2)
-        for i, col in enumerate([c1, c2]):
-            if i < len(by_person):
-                row = by_person.iloc[i]
-                display = DISPLAY_NAMES.get(row["Person"], row["Person"])
-                col.metric(display, f"${row['Total']:,.2f}", f"{row['% Share']}% of total")
-
+        c1.metric("💙 Jude", f"${contrib_pps['husband']['total']:,.2f}", f"{_j_pct:.1f}% of total")
+        c1.caption(f"Recurring: ${contrib_pps['husband']['recurring']:,.2f} · Manual: ${contrib_pps['husband']['manual']:,.2f}")
+        c2.metric("❤️ Wincyl", f"${contrib_pps['wife']['total']:,.2f}", f"{_w_pct:.1f}% of total")
+        c2.caption(f"Recurring: ${contrib_pps['wife']['recurring']:,.2f} · Manual: ${contrib_pps['wife']['manual']:,.2f}")
         st.caption(f"Period: {c_start} to {c_end}")
 
 
@@ -1277,6 +1308,16 @@ def page_recurring(username: str):
         st.info("No active recurring expenses.")
         return
 
+    # Per-person recurring totals
+    _j_rec = sum(r["amount"] for r in recurring if r["added_by"] == "husband")
+    _w_rec = sum(r["amount"] for r in recurring if r["added_by"] == "wife")
+    _j_count = sum(1 for r in recurring if r["added_by"] == "husband")
+    _w_count = sum(1 for r in recurring if r["added_by"] == "wife")
+    rc1, rc2 = st.columns(2)
+    rc1.metric("💙 Jude", f"${_j_rec:,.2f}/mo", f"{_j_count} item{'s' if _j_count != 1 else ''}")
+    rc2.metric("❤️ Wincyl", f"${_w_rec:,.2f}/mo", f"{_w_count} item{'s' if _w_count != 1 else ''}")
+    st.divider()
+
     for rec in recurring:
         col1, col2, col3, col4 = st.columns([4, 2, 1, 1])
         with col1:
@@ -1292,8 +1333,16 @@ def page_recurring(username: str):
                 unsafe_allow_html=True,
             )
         with col2:
-            last = rec["last_added_date"] or "Never"
-            st.caption(f"Last added: {last}")
+            last_iso = rec["last_added_date"]
+            if last_iso:
+                last_dt = date.fromisoformat(last_iso)
+                today_dt = date.today()
+                if last_dt > today_dt:
+                    st.caption(f"Next: {last_iso}")
+                else:
+                    st.caption(f"Last: {last_iso}")
+            else:
+                st.caption("Not scheduled yet")
         with col3:
             if st.button("Edit", key=f"edit_{rec['id']}"):
                 st.session_state["editing_recurring_id"] = rec["id"]
@@ -1321,7 +1370,11 @@ def page_search(username: str):
     with col3:
         selected_categories = st.multiselect("Categories", CATEGORIES, default=CATEGORIES)
     with col4:
-        selected_users = st.multiselect("Added by", ["husband", "wife"], default=["husband", "wife"])
+        _person_display_options = ["Jude", "Wincyl"]
+        selected_persons = st.multiselect("For", _person_display_options, default=_person_display_options)
+        # map back to internal keys for filtering
+        _display_to_key = {v: k for k, v in DISPLAY_NAMES.items()}
+        selected_users = [_display_to_key[p] for p in selected_persons if p in _display_to_key]
 
     col5, col6 = st.columns(2)
     with col5:
@@ -1403,6 +1456,12 @@ def page_manage_expenses(username: str):
             e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
             e_description = st.text_input("Description", value=expense["description"] or "",
                                           max_chars=MAX_DESCRIPTION_LENGTH)
+            _edit_person_options = ["Jude", "Wincyl"]
+            _edit_current_person = DISPLAY_NAMES.get(expense.get("added_by", ""), "Jude")
+            e_added_for = st.selectbox(
+                "Who is this for?", _edit_person_options,
+                index=_edit_person_options.index(_edit_current_person) if _edit_current_person in _edit_person_options else 0,
+            )
             e_writeoff = st.checkbox("🧾 Tax Write-Off", value=bool(expense.get("is_tax_writeoff", 0)))
 
             col_save, col_cancel = st.columns(2)
@@ -1419,7 +1478,8 @@ def page_manage_expenses(username: str):
                 if not valid:
                     st.error(msg)
                 else:
-                    update_expense(editing_id, e_date, e_amount, e_category, e_description.strip(), e_writeoff)
+                    e_added_by = next((k for k, v in DISPLAY_NAMES.items() if v == e_added_for), expense.get("added_by"))
+                    update_expense(editing_id, e_date, e_amount, e_category, e_description.strip(), e_writeoff, e_added_by)
                     st.session_state.pop("editing_expense_id", None)
                     st.success("Expense updated!")
                     st.rerun()
@@ -1450,9 +1510,10 @@ def page_manage_expenses(username: str):
                 col_info, col_edit, col_del = st.columns([5, 1, 1])
                 with col_info:
                     st.markdown(
+                        f"{_person_badge(row['added_by'])} &nbsp; "
                         f"**{row['date']}** | ${row['amount']:,.2f} | "
-                        f"{row['category']} | {row['description'] or '—'} "
-                        f"*(by {row['added_by']})*{writeoff_badge}"
+                        f"{row['category']} | {row['description'] or '—'}{writeoff_badge}",
+                        unsafe_allow_html=True,
                     )
                 with col_edit:
                     if st.button("Edit", key=f"edit_exp_{row['id']}"):
@@ -1511,7 +1572,7 @@ def page_manage_expenses(username: str):
                 added_name = DISPLAY_NAMES.get(row["added_by"], row["added_by"])
                 st.markdown(
                     f"🧾 **{row['date']}** | ${row['amount']:,.2f} | "
-                    f"{row['category']} | {row['description'] or '—'} *(by {added_name})*"
+                    f"{row['category']} | {row['description'] or '—'} *(for {added_name})*"
                 )
 
             st.divider()

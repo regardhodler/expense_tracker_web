@@ -693,6 +693,36 @@ def aggregate_jueds_month(
     }
 
 
+def per_person_summary(rows: list[dict]) -> dict:
+    """Return recurring/manual/total split per person for a list of expense rows.
+
+    Returns
+    -------
+    {
+      "husband": {"recurring": float, "manual": float, "total": float},
+      "wife":    {"recurring": float, "manual": float, "total": float},
+    }
+    """
+    result = {
+        "husband": {"recurring": 0.0, "manual": 0.0, "total": 0.0},
+        "wife":    {"recurring": 0.0, "manual": 0.0, "total": 0.0},
+    }
+    for r in rows:
+        person = r.get("added_by", "")
+        if person not in result:
+            continue
+        amt = float(r.get("amount", 0))
+        desc = r.get("description", "") or ""
+        if desc.startswith("[Recurring]"):
+            result[person]["recurring"] += amt
+        else:
+            result[person]["manual"] += amt
+        result[person]["total"] += amt
+    for p in result:
+        result[p] = {k: round(v, 2) for k, v in result[p].items()}
+    return result
+
+
 def _person_badge(added_by: str) -> str:
     """HTML pill badge — use with unsafe_allow_html=True in Streamlit."""
     if added_by == "husband":
@@ -702,15 +732,15 @@ def _person_badge(added_by: str) -> str:
         )
     elif added_by == "wife":
         return (
-            '<span style="background:#e056a0;color:white;padding:1px 8px;'
-            'border-radius:10px;font-size:11px;font-weight:600">🩷 Wincyl</span>'
+            '<span style="background:#c0392b;color:white;padding:1px 8px;'
+            'border-radius:10px;font-size:11px;font-weight:600">❤️ Wincyl</span>'
         )
     return added_by
 
 
 def _person_label(added_by: str) -> str:
     """Plain-text emoji label for dataframe cells (no HTML rendering)."""
-    return {"husband": "💙 Jude", "wife": "🩷 Wincyl"}.get(added_by, added_by)
+    return {"husband": "💙 Jude", "wife": "❤️ Wincyl"}.get(added_by, added_by)
 
 
 def get_who_spends_more(df: pd.DataFrame) -> pd.DataFrame:

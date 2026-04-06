@@ -202,13 +202,20 @@ def get_expense_by_id(expense_id: int) -> Optional[dict]:
     return dict(zip(_COLUMNS, row))
 
 
-def update_expense(expense_id: int, date_val: date, amount: float, category: str, description: str, is_tax_writeoff: bool = False):
+def update_expense(expense_id: int, date_val: date, amount: float, category: str, description: str,
+                   is_tax_writeoff: bool = False, added_by: Optional[str] = None):
     """Update an existing expense."""
     conn = get_connection()
-    conn.execute(
-        "UPDATE expenses SET date = ?, amount = ?, category = ?, description = ?, is_tax_writeoff = ? WHERE id = ?",
-        (date_val.isoformat(), round(amount, 2), category, description, int(is_tax_writeoff), expense_id),
-    )
+    if added_by is not None:
+        conn.execute(
+            "UPDATE expenses SET date = ?, amount = ?, category = ?, description = ?, is_tax_writeoff = ?, added_by = ? WHERE id = ?",
+            (date_val.isoformat(), round(amount, 2), category, description, int(is_tax_writeoff), added_by, expense_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE expenses SET date = ?, amount = ?, category = ?, description = ?, is_tax_writeoff = ? WHERE id = ?",
+            (date_val.isoformat(), round(amount, 2), category, description, int(is_tax_writeoff), expense_id),
+        )
     _sync_write(conn)
 
 
