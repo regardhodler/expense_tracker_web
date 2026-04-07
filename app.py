@@ -749,9 +749,10 @@ def page_dashboard(username: str):
     # Recent expenses — YTD grouped by Today / Yesterday / Past
     st.subheader("Recent Expenses")
     if ytd_rows:
-        yesterday = today - pd.Timedelta(days=1)
+        from datetime import timedelta as _td
+        yesterday = today - _td(days=1)
         today_str = today.isoformat()
-        yesterday_str = yesterday.date().isoformat()
+        yesterday_str = yesterday.isoformat()
 
         groups = {"Today": [], "Yesterday": [], "Past": []}
         for r in sorted(ytd_rows, key=lambda x: x["date"], reverse=True):
