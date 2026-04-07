@@ -1268,6 +1268,37 @@ def page_budgets(username: str):
             set_budget(category, limit, username, notes)
             st.toast(f"✅ Budget for {category} set to ${limit:,.2f}")
 
+    # Inline edit form
+    editing_cat = st.session_state.get("_editing_budget")
+    if editing_cat:
+        budgets_all = get_budgets()
+        edit_b = next((b for b in budgets_all if b["category"] == editing_cat), None)
+        if edit_b:
+            st.subheader(f"Edit Budget: {editing_cat}")
+            with st.form("edit_budget_form"):
+                new_limit = st.number_input(
+                    "Monthly Limit ($)", min_value=0.01, max_value=MAX_AMOUNT,
+                    step=10.0, format="%.2f", value=float(edit_b["monthly_limit"]),
+                )
+                new_notes = st.text_area(
+                    "Comments (optional)", value=edit_b.get("notes", ""),
+                    placeholder="e.g. Includes groceries and dining out", max_chars=300,
+                )
+                c_save, c_cancel = st.columns(2)
+                with c_save:
+                    save = st.form_submit_button("Save", use_container_width=True)
+                with c_cancel:
+                    cancel = st.form_submit_button("Cancel", use_container_width=True)
+                if save:
+                    set_budget(editing_cat, new_limit, username, new_notes)
+                    st.session_state.pop("_editing_budget", None)
+                    st.toast(f"✅ {editing_cat} budget updated!")
+                    st.rerun()
+                if cancel:
+                    st.session_state.pop("_editing_budget", None)
+                    st.rerun()
+        return
+
     # Show current budgets with progress
     st.subheader("Current Month Progress")
     today = date.today()
@@ -1285,16 +1316,39 @@ def page_budgets(username: str):
         spent = category_totals.get(cat, 0)
         pct = min(spent / limit_val, 1.0) if limit_val > 0 else 0
 
-        col1, col2, col3 = st.columns([3, 1, 1])
+        col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
         with col1:
             st.progress(pct, text=f"{cat}")
         with col2:
             st.caption(f"${spent:,.2f} / ${limit_val:,.2f}")
         with col3:
             if spent > limit_val:
-                st.error(f"Over by ${spent - limit_val:,.2f}")
+                st.error(f"Over ${spent - limit_val:,.2f}")
             else:
                 st.caption(f"${limit_val - spent:,.2f} left")
+        with col4:
+            if st.button("✏️", key=f"edit_bgt_{cat}", help=f"Edit {cat} budget"):
+                st.session_state["_editing_budget"] = cat
+                st.rerun()
+        with col5:
+            if st.button("🗑️", key=f"del_bgt_{cat}", help=f"Delete {cat} budget"):
+                st.session_state[f"_confirm_del_bgt_{cat}"] = True
+                st.rerun()
+
+        if st.session_state.get(f"_confirm_del_bgt_{cat}"):
+            st.warning(f"Delete the **{cat}** budget?")
+            c_yes, c_no = st.columns(2)
+            with c_yes:
+                if st.button("Yes, delete", key=f"yes_del_bgt_{cat}", type="primary"):
+                    delete_budget(cat)
+                    st.session_state.pop(f"_confirm_del_bgt_{cat}", None)
+                    st.toast(f"🗑️ {cat} budget deleted.")
+                    st.rerun()
+            with c_no:
+                if st.button("Cancel", key=f"no_del_bgt_{cat}"):
+                    st.session_state.pop(f"_confirm_del_bgt_{cat}", None)
+                    st.rerun()
+
         if b.get("notes"):
             st.caption(f"💬 {b['notes']}")
 
