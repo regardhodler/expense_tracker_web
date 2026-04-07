@@ -7,6 +7,7 @@ from datetime import date, datetime
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as st_components
 import streamlit_authenticator as stauth
 
 from database import (
@@ -2003,20 +2004,69 @@ def _fab_dialog(username: str):
                 st.rerun()
 
 
-def _inject_fab():
-    """Inject fixed pink ➕ FAB as a pure HTML anchor pointing to ?fab=1."""
-    st.markdown(
-        '<a href="?fab=1" title="Add Expense" style="'
-        'position:fixed;top:50%;right:16px;transform:translateY(-50%);'
-        'display:flex;align-items:center;justify-content:center;'
-        'width:56px;height:56px;border-radius:50%;'
-        'background:#E91E8C;color:white;font-size:1.8rem;'
-        'text-decoration:none;'
-        'box-shadow:0 4px 14px rgba(233,30,140,0.45);'
-        'z-index:9998;'
-        '">➕</a>',
-        unsafe_allow_html=True,
-    )
+def _inject_fab(username: str):
+    """FAB: hidden Streamlit button + JS-injected visible button in parent DOM."""
+    # Hidden proxy button — off-screen, JS will click it
+    if st.button("➕", key="fab_trigger"):
+        _fab_dialog(username)
+
+    # JS: inject visible FAB into parent page, click the hidden proxy on tap
+    st_components.html("""
+    <script>
+    (function() {
+        var doc = window.parent.document;
+
+        // Remove stale FAB from previous render
+        var old = doc.getElementById('jw-fab');
+        if (old) old.remove();
+
+        // Move the hidden Streamlit proxy button off-screen
+        var btns = doc.querySelectorAll('[data-testid="stButton"] button');
+        var proxy = null;
+        for (var i = 0; i < btns.length; i++) {
+            if (btns[i].innerText.trim() === '➕') {
+                proxy = btns[i];
+                proxy.parentElement.style.cssText =
+                    'position:fixed;left:-9999px;top:-9999px;pointer-events:none';
+                break;
+            }
+        }
+
+        // Build visible FAB
+        var fab = doc.createElement('button');
+        fab.id = 'jw-fab';
+        fab.innerHTML = '&#10010;';
+        fab.setAttribute('title', 'Add Expense');
+        fab.style.cssText = [
+            'position:fixed',
+            'top:50%',
+            'right:16px',
+            'transform:translateY(-50%)',
+            'width:56px',
+            'height:56px',
+            'border-radius:50%',
+            'background:#E91E8C',
+            'color:white',
+            'font-size:1.6rem',
+            'font-weight:bold',
+            'border:none',
+            'cursor:pointer',
+            'box-shadow:0 4px 14px rgba(233,30,140,0.45)',
+            'z-index:9998',
+            'display:flex',
+            'align-items:center',
+            'justify-content:center',
+            'line-height:1'
+        ].join(';');
+
+        fab.onclick = function() {
+            if (proxy) { proxy.click(); }
+        };
+
+        doc.body.appendChild(fab);
+    })();
+    </script>
+    """, height=0)
 
 
 # Main
@@ -2051,14 +2101,6 @@ def main():
 
     inject_dark_mode_css(False)
 
-    # FAB query-param → open dialog (set flag before clearing param to survive rerun)
-    if st.query_params.get("fab") == "1":
-        st.session_state["_open_fab"] = True
-        st.query_params.pop("fab")
-
-    if st.session_state.pop("_open_fab", False):
-        _fab_dialog(username)
-
     page = st.sidebar.radio(
         "Navigate",
         ["Dashboard", "Add Expense", "Monthly View", "Analysis",
@@ -2080,7 +2122,7 @@ def main():
     }
     pages[page](username)
 
-    _inject_fab()
+    _inject_fab(username)
 
 
 if __name__ == "__main__":
