@@ -118,7 +118,7 @@ def inject_facebook_css():
     st.markdown("""
         <style>
         /* Gray page background */
-        .stApp { background-color: #F0F2F5 !important; padding-bottom: 80px !important; }
+        .stApp { background-color: #F0F2F5 !important; }
         /* White sidebar */
         [data-testid="stSidebar"] { background-color: #FFFFFF !important; }
         /* Blue primary buttons */
@@ -2009,8 +2009,9 @@ def _inject_fab(username: str):
         <style>
         div[data-testid="stButton"].fab-btn > button {
             position: fixed !important;
-            bottom: 76px !important;
-            right: 20px !important;
+            top: 50% !important;
+            right: 16px !important;
+            transform: translateY(-50%) !important;
             width: 56px !important;
             height: 56px !important;
             border-radius: 50% !important;
@@ -2030,37 +2031,6 @@ def _inject_fab(username: str):
     if st.button("＋", key="fab_trigger"):
         _fab_dialog(username)
     st.markdown('</div>', unsafe_allow_html=True)
-
-
-def _inject_bottom_nav():
-    """Fixed mobile-friendly bottom navigation bar."""
-    params = st.query_params
-    active = params.get("nav", "")
-
-    def _link(label: str, icon: str, nav_key: str) -> str:
-        is_active = nav_key == active
-        color = "#1877F2" if is_active else "#65676B"
-        weight = "700" if is_active else "400"
-        return (
-            f'<a href="?nav={nav_key}" style="display:flex;flex-direction:column;'
-            f'align-items:center;text-decoration:none;color:{color};font-weight:{weight};'
-            f'font-size:0.7rem;gap:2px">'
-            f'<span style="font-size:1.4rem">{icon}</span>{label}</a>'
-        )
-
-    nav_html = (
-        '<div style="position:fixed;bottom:0;left:0;right:0;z-index:9999;'
-        'background:white;border-top:1px solid #E4E6EB;'
-        'display:flex;justify-content:space-around;align-items:center;'
-        'padding:6px 8px 14px;box-shadow:0 -2px 8px rgba(0,0,0,0.08)">'
-        + _link("Home", "🏠", "Dashboard")
-        + _link("Month", "📅", "Monthly+View")
-        + _link("Stats", "📊", "Analysis")
-        + _link("Search", "🔍", "Search")
-        + _link("More", "⋯", "More")
-        + '</div>'
-    )
-    st.markdown(nav_html, unsafe_allow_html=True)
 
 
 # Main
@@ -2095,29 +2065,11 @@ def main():
 
     inject_dark_mode_css(False)
 
-    PAGE_NAMES = [
-        "Dashboard", "Add Expense", "Monthly View", "Analysis",
-        "Search", "Budgets", "Recurring Expense", "Manage Expenses", "Savings Goals",
-        "Jude's Quantitative",
-    ]
-
-    # Bottom-nav query param takes priority over sidebar on mobile
-    _nav_param = st.query_params.get("nav", "").replace("+", " ")
-    # Map bottom-nav keys to sidebar page names
-    _nav_map = {
-        "Monthly View": "Monthly View",
-        "Analysis": "Analysis",
-        "Search": "Search",
-        "More": "Manage Expenses",
-        "Dashboard": "Dashboard",
-    }
-    _qp_page = _nav_map.get(_nav_param, "") if _nav_param in _nav_map else ""
-
-    _sidebar_index = PAGE_NAMES.index(_qp_page) if _qp_page in PAGE_NAMES else 0
     page = st.sidebar.radio(
         "Navigate",
-        PAGE_NAMES,
-        index=_sidebar_index,
+        ["Dashboard", "Add Expense", "Monthly View", "Analysis",
+         "Search", "Budgets", "Recurring Expense", "Manage Expenses", "Savings Goals",
+         "Jude's Quantitative"],
     )
 
     pages = {
@@ -2134,9 +2086,7 @@ def main():
     }
     pages[page](username)
 
-    # FAB + bottom nav rendered after page content
     _inject_fab(username)
-    _inject_bottom_nav()
 
 
 if __name__ == "__main__":
