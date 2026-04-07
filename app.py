@@ -746,16 +746,59 @@ def page_dashboard(username: str):
                     f"(${over:,.2f} over)"
                 )
 
-    # Recent expenses
+    # Recent expenses — YTD grouped by Today / Yesterday / Past
     st.subheader("Recent Expenses")
-    recent = _cached_recent_expenses(10)
-    if recent:
-        df = pd.DataFrame(recent)
-        df_display = df[["date", "amount", "category", "description", "added_by"]].copy()
-        df_display["added_by"] = df_display["added_by"].map(_person_label)
-        df_display.columns = ["Date", "Amount", "Category", "Description", "Who is this for?"]
-        df_display["Amount"] = df_display["Amount"].map("${:,.2f}".format)
-        st.dataframe(df_display, use_container_width=True, hide_index=True)
+    if ytd_rows:
+        yesterday = today - pd.Timedelta(days=1)
+        today_str = today.isoformat()
+        yesterday_str = yesterday.date().isoformat()
+
+        groups = {"Today": [], "Yesterday": [], "Past": []}
+        for r in sorted(ytd_rows, key=lambda x: x["date"], reverse=True):
+            d = r["date"][:10]
+            if d == today_str:
+                groups["Today"].append(r)
+            elif d == yesterday_str:
+                groups["Yesterday"].append(r)
+            else:
+                groups["Past"].append(r)
+
+        for label, rows in groups.items():
+            if not rows:
+                continue
+            group_total = sum(r["amount"] for r in rows)
+            st.markdown(
+                f'<div style="font-weight:700;color:#1877F2;font-size:0.9em;'
+                f'margin:14px 0 4px;border-bottom:2px solid #E4E6EB;padding-bottom:4px">'
+                f'{label} &nbsp;<span style="color:#888;font-weight:400;font-size:0.85em">'
+                f'${group_total:,.2f}</span></div>',
+                unsafe_allow_html=True,
+            )
+            for r in rows:
+                _r_color = "#4a8cff" if r.get("added_by") == "husband" else "#ff6b9d"
+                _r_letter = "J" if r.get("added_by") == "husband" else "W"
+                _r_cat_color = CAT_COLORS.get(r["category"], "#888")
+                _r_date = r["date"][:10]
+                _r_writeoff = (
+                    ' <span style="background:#b45309;color:#fde68a;padding:1px 6px;'
+                    'border-radius:6px;font-size:0.7em">🧾</span>'
+                    if r.get("is_tax_writeoff") else ""
+                )
+                st.markdown(
+                    f'<div style="display:flex;align-items:center;gap:10px;'
+                    f'padding:8px 12px;border-radius:8px;background:white;'
+                    f'margin:3px 0;box-shadow:0 1px 2px rgba(0,0,0,0.06)">'
+                    f'<span style="color:{_r_cat_color};font-size:1.1em">●</span>'
+                    f'<div style="flex:1">'
+                    f'<span style="font-weight:600;color:#1C1E21">${r["amount"]:,.2f}</span>'
+                    f' <span style="color:#606770">{r["category"]}'
+                    + (f' · {r["description"]}' if r.get("description") else "")
+                    + f'</span>{_r_writeoff}</div>'
+                    f'<span style="color:{_r_color};font-weight:700;font-size:0.85em">{_r_letter}</span>'
+                    + (f'<span style="color:#aaa;font-size:0.75em">{_r_date}</span>' if label == "Past" else "")
+                    + f'</div>',
+                    unsafe_allow_html=True,
+                )
     else:
         st.info("No expenses yet. Add your first one!")
 
