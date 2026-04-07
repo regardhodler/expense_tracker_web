@@ -113,6 +113,65 @@ def inject_pwa():
     )
 
 
+def inject_facebook_css():
+    """Facebook-inspired UI: gray background, white cards, blue primary, pink accents."""
+    st.markdown("""
+        <style>
+        /* Gray page background */
+        .stApp { background-color: #F0F2F5 !important; padding-bottom: 80px !important; }
+        /* White sidebar */
+        [data-testid="stSidebar"] { background-color: #FFFFFF !important; }
+        /* Blue primary buttons */
+        [data-testid="baseButton-primary"] button,
+        button[kind="primaryFormSubmit"],
+        .stButton > button[kind="primary"] {
+            background: #1877F2 !important;
+            color: white !important;
+            border-radius: 6px !important;
+            font-weight: 600 !important;
+            border: none !important;
+        }
+        /* White metric cards with pink left accent */
+        [data-testid="stMetric"] {
+            background: white !important;
+            border-radius: 8px !important;
+            padding: 12px 16px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
+            border-left: 4px solid #E91E8C !important;
+        }
+        /* White form / block containers */
+        [data-testid="stForm"],
+        [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
+            background: white !important;
+            border-radius: 10px !important;
+            padding: 16px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+            margin-bottom: 12px !important;
+        }
+        /* Headers */
+        h1, h2, h3 { color: #1C1E21 !important; }
+        /* Readable body text */
+        p, label, .stMarkdown, [data-testid="stMarkdownContainer"] p { color: #1C1E21 !important; }
+        /* Input fields light */
+        input, textarea, select,
+        [data-testid="stTextInput"] input,
+        [data-testid="stNumberInput"] input {
+            background: #F0F2F5 !important;
+            color: #1C1E21 !important;
+            border: 1px solid #CED0D4 !important;
+            border-radius: 6px !important;
+        }
+        /* Selectbox */
+        [data-testid="stSelectbox"] > div > div {
+            background: #F0F2F5 !important;
+            color: #1C1E21 !important;
+            border: 1px solid #CED0D4 !important;
+            border-radius: 6px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+
 def inject_mobile_css():
     """Responsive CSS for mobile devices."""
     st.markdown("""
@@ -1892,12 +1951,125 @@ def page_jueds_quantitative(username: str) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Floating Action Button dialog
+# ---------------------------------------------------------------------------
+
+@st.dialog("Add Expense")
+def _fab_dialog(username: str):
+    """Compact add-expense modal triggered by the FAB button."""
+    with st.form("fab_add_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            exp_date = st.date_input("Date", value=date.today(), key="fab_date")
+        with col2:
+            amount = st.number_input(
+                "Amount ($)", min_value=0.01, max_value=MAX_AMOUNT, step=0.01,
+                format="%.2f", key="fab_amount",
+            )
+        category = st.selectbox("Category", CATEGORIES, key="fab_category")
+        description = st.text_input("Description", "", max_chars=MAX_DESCRIPTION_LENGTH, key="fab_desc")
+        _person_options = ["Jude", "Wincyl"]
+        _default_for = DISPLAY_NAMES.get(username, "Jude")
+        added_for = st.selectbox(
+            "Who is this for?",
+            _person_options,
+            index=_person_options.index(_default_for) if _default_for in _person_options else 0,
+            key="fab_for",
+        )
+        is_writeoff = st.checkbox("🧾 Tax Write-Off", value=False, key="fab_writeoff")
+        submitted = st.form_submit_button("Add Expense", use_container_width=True)
+
+        if submitted:
+            day_expenses = get_expenses_between(exp_date, exp_date)
+            valid, msg = validate_expense(
+                amount, category, description.strip(),
+                existing_expenses=day_expenses,
+                exp_date=exp_date,
+                confirm_duplicate=False,
+            )
+            if not valid:
+                st.error(msg.replace("DUPLICATE: ", ""))
+            else:
+                added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
+                add_expense(exp_date, amount, category, description.strip(), added_by, is_writeoff)
+                st.toast(f"✅ ${amount:,.2f} · {category} added!")
+                st.session_state["_last_added"] = {
+                    "amount": amount, "category": category,
+                    "description": description.strip(),
+                    "date": str(exp_date), "added_by": added_by,
+                    "for_name": added_for, "is_writeoff": is_writeoff,
+                }
+                st.rerun()
+
+
+def _inject_fab(username: str):
+    """Inject pink floating ➕ button (bottom-right) that opens the add-expense dialog."""
+    st.markdown("""
+        <style>
+        div[data-testid="stButton"].fab-btn > button {
+            position: fixed !important;
+            bottom: 76px !important;
+            right: 20px !important;
+            width: 56px !important;
+            height: 56px !important;
+            border-radius: 50% !important;
+            background: #E91E8C !important;
+            color: white !important;
+            font-size: 1.6rem !important;
+            line-height: 1 !important;
+            box-shadow: 0 4px 14px rgba(233,30,140,0.45) !important;
+            z-index: 9998 !important;
+            border: none !important;
+            padding: 0 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    # Wrap button in a div we can target with the CSS above
+    st.markdown('<div class="fab-btn">', unsafe_allow_html=True)
+    if st.button("＋", key="fab_trigger"):
+        _fab_dialog(username)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def _inject_bottom_nav():
+    """Fixed mobile-friendly bottom navigation bar."""
+    params = st.query_params
+    active = params.get("nav", "")
+
+    def _link(label: str, icon: str, nav_key: str) -> str:
+        is_active = nav_key == active
+        color = "#1877F2" if is_active else "#65676B"
+        weight = "700" if is_active else "400"
+        return (
+            f'<a href="?nav={nav_key}" style="display:flex;flex-direction:column;'
+            f'align-items:center;text-decoration:none;color:{color};font-weight:{weight};'
+            f'font-size:0.7rem;gap:2px">'
+            f'<span style="font-size:1.4rem">{icon}</span>{label}</a>'
+        )
+
+    nav_html = (
+        '<div style="position:fixed;bottom:0;left:0;right:0;z-index:9999;'
+        'background:white;border-top:1px solid #E4E6EB;'
+        'display:flex;justify-content:space-around;align-items:center;'
+        'padding:6px 8px 14px;box-shadow:0 -2px 8px rgba(0,0,0,0.08)">'
+        + _link("Home", "🏠", "Dashboard")
+        + _link("Month", "📅", "Monthly+View")
+        + _link("Stats", "📊", "Analysis")
+        + _link("Search", "🔍", "Search")
+        + _link("More", "⋯", "More")
+        + '</div>'
+    )
+    st.markdown(nav_html, unsafe_allow_html=True)
+
+
 # Main
 # ---------------------------------------------------------------------------
 
 def main():
     init_db()
     inject_pwa()
+    inject_facebook_css()
     inject_mobile_css()
     inject_romantic_css()
     authenticator, name, auth_status, username = authenticate()
@@ -1923,11 +2095,29 @@ def main():
 
     inject_dark_mode_css(False)
 
+    PAGE_NAMES = [
+        "Dashboard", "Add Expense", "Monthly View", "Analysis",
+        "Search", "Budgets", "Recurring Expense", "Manage Expenses", "Savings Goals",
+        "Jude's Quantitative",
+    ]
+
+    # Bottom-nav query param takes priority over sidebar on mobile
+    _nav_param = st.query_params.get("nav", "").replace("+", " ")
+    # Map bottom-nav keys to sidebar page names
+    _nav_map = {
+        "Monthly View": "Monthly View",
+        "Analysis": "Analysis",
+        "Search": "Search",
+        "More": "Manage Expenses",
+        "Dashboard": "Dashboard",
+    }
+    _qp_page = _nav_map.get(_nav_param, "") if _nav_param in _nav_map else ""
+
+    _sidebar_index = PAGE_NAMES.index(_qp_page) if _qp_page in PAGE_NAMES else 0
     page = st.sidebar.radio(
         "Navigate",
-        ["Dashboard", "Add Expense", "Monthly View", "Analysis",
-         "Search", "Budgets", "Recurring Expense", "Manage Expenses", "Savings Goals",
-         "Jude's Quantitative"],
+        PAGE_NAMES,
+        index=_sidebar_index,
     )
 
     pages = {
@@ -1943,6 +2133,10 @@ def main():
         "Jude's Quantitative": page_jueds_quantitative,
     }
     pages[page](username)
+
+    # FAB + bottom nav rendered after page content
+    _inject_fab(username)
+    _inject_bottom_nav()
 
 
 if __name__ == "__main__":
