@@ -2003,34 +2003,20 @@ def _fab_dialog(username: str):
                 st.rerun()
 
 
-def _inject_fab(username: str):
-    """Inject pink floating ➕ button (bottom-right) that opens the add-expense dialog."""
-    st.markdown("""
-        <style>
-        div[data-testid="stButton"].fab-btn > button {
-            position: fixed !important;
-            top: 50% !important;
-            right: 16px !important;
-            transform: translateY(-50%) !important;
-            width: 56px !important;
-            height: 56px !important;
-            border-radius: 50% !important;
-            background: #E91E8C !important;
-            color: white !important;
-            font-size: 1.6rem !important;
-            line-height: 1 !important;
-            box-shadow: 0 4px 14px rgba(233,30,140,0.45) !important;
-            z-index: 9998 !important;
-            border: none !important;
-            padding: 0 !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    # Wrap button in a div we can target with the CSS above
-    st.markdown('<div class="fab-btn">', unsafe_allow_html=True)
-    if st.button("＋", key="fab_trigger"):
-        _fab_dialog(username)
-    st.markdown('</div>', unsafe_allow_html=True)
+def _inject_fab():
+    """Inject fixed pink ➕ FAB as a pure HTML anchor pointing to ?fab=1."""
+    st.markdown(
+        '<a href="?fab=1" title="Add Expense" style="'
+        'position:fixed;top:50%;right:16px;transform:translateY(-50%);'
+        'display:flex;align-items:center;justify-content:center;'
+        'width:56px;height:56px;border-radius:50%;'
+        'background:#E91E8C;color:white;font-size:1.8rem;'
+        'text-decoration:none;'
+        'box-shadow:0 4px 14px rgba(233,30,140,0.45);'
+        'z-index:9998;'
+        '">➕</a>',
+        unsafe_allow_html=True,
+    )
 
 
 # Main
@@ -2065,6 +2051,14 @@ def main():
 
     inject_dark_mode_css(False)
 
+    # FAB query-param → open dialog (set flag before clearing param to survive rerun)
+    if st.query_params.get("fab") == "1":
+        st.session_state["_open_fab"] = True
+        st.query_params.pop("fab")
+
+    if st.session_state.pop("_open_fab", False):
+        _fab_dialog(username)
+
     page = st.sidebar.radio(
         "Navigate",
         ["Dashboard", "Add Expense", "Monthly View", "Analysis",
@@ -2086,7 +2080,7 @@ def main():
     }
     pages[page](username)
 
-    _inject_fab(username)
+    _inject_fab()
 
 
 if __name__ == "__main__":
