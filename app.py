@@ -1961,24 +1961,44 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # Floating ➕ button — inline style anchor (avoids Streamlit markdown link rewriting)
-    st.markdown(
-        '<a href="?fab=1" title="Quick Add Expense" style="'
-        'position:fixed;top:50%;right:24px;transform:translateY(-50%);'
-        'display:flex;align-items:center;justify-content:center;'
-        'width:56px;height:56px;border-radius:50%;'
-        'background:linear-gradient(135deg,#ff6b9d,#c44dff);'
-        'color:white;font-size:1.8rem;text-decoration:none;'
-        'box-shadow:0 4px 14px rgba(196,77,255,0.45);z-index:9999;'
-        '">➕</a>',
-        unsafe_allow_html=True,
-    )
-
-    # FAB quick-add dialog — clear param immediately so X-close doesn't reopen
-    if st.query_params.get("fab") == "1":
-        del st.query_params["fab"]
+    # Hidden Streamlit button — JS floating button clicks this to avoid any URL navigation
+    if st.button("➕__fab__", key="fab_trigger"):
         st.session_state["show_fab_dialog"] = True
-        st.rerun()
+
+    st.markdown("""
+<style>
+.fab-float {
+    position: fixed; top: 50%; right: 24px; transform: translateY(-50%);
+    z-index: 9999; background: linear-gradient(135deg, #ff6b9d, #c44dff);
+    border-radius: 50%; width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem; border: none; cursor: pointer; color: #fff;
+    box-shadow: 0 4px 14px rgba(196,77,255,0.45);
+}
+</style>
+<script>
+(function() {
+    function setup() {
+        var btns = document.querySelectorAll('button');
+        for (var b of btns) {
+            if (b.textContent.trim() === '➕__fab__') {
+                b.closest('div[data-testid="stButton"]').style.display = 'none';
+                return;
+            }
+        }
+        setTimeout(setup, 100);
+    }
+    setup();
+})();
+</script>
+<button class="fab-float" title="Quick Add Expense" onclick="
+    var btns = document.querySelectorAll('button');
+    for (var b of btns) {
+        if (b.textContent.trim() === '➕__fab__') { b.click(); return; }
+    }
+">➕</button>
+""", unsafe_allow_html=True)
+
     if st.session_state.pop("show_fab_dialog", False):
         quick_add_dialog(username)
 
