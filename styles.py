@@ -286,7 +286,7 @@ def card_expense(row: dict, reactions: list[dict], current_user: str) -> str:
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
     <div class="avatar">{initial}</div>
     <div>
-      <div style="font-weight:bold;color:#e0e0e0;font-size:0.9em">{display_name} {badge}</div>
+      {f'<div style="font-size:0.75em">{badge}</div>' if badge else ''}
       <div style="color:#666;font-size:0.72em">{time_str}</div>
     </div>
   </div>

@@ -1958,7 +1958,7 @@ def main():
     st.markdown("""
 <style>
 .fab-float {
-    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+    position: fixed; top: 50%; right: 24px; transform: translateY(-50%); z-index: 9999;
     background: linear-gradient(135deg, #ff6b9d, #c44dff);
     border-radius: 50%; width: 56px; height: 56px;
     display: flex; align-items: center; justify-content: center;
