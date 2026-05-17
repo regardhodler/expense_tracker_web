@@ -2185,6 +2185,23 @@ def page_jueds_quantitative(username: str) -> None:
         hide_index=True,
     )
 
+    # YTD totals — only months with income logged
+    income_months = [r for r in monthly_rows if r["has_income"]]
+    if income_months:
+        total_income = sum(r["net_income"] for r in income_months)
+        total_recurring = sum(r["recurring_expense"] for r in income_months)
+        total_manual = sum(r["manual_expense"] for r in income_months)
+        total_fcf = sum(r["free_cash_flow"] for r in income_months)
+        fcf_color = "#2ecc71" if total_fcf >= 0 else "#e74c3c"
+        sign = "+" if total_fcf >= 0 else ""
+        tc1, tc2, tc3, tc4 = st.columns(4)
+        tc1.metric("YTD Income", f"${total_income:,.2f}")
+        tc2.metric("YTD Recurring", f"${total_recurring:,.2f}")
+        tc3.metric("YTD Discretionary", f"${total_manual:,.2f}")
+        tc4.metric("Total Free Cash Flow", f"{sign}${total_fcf:,.2f}",
+                   delta=f"{sign}${total_fcf:,.2f}",
+                   delta_color="normal" if total_fcf >= 0 else "inverse")
+
     st.divider()
 
     # ── DRILL-DOWN: pick a month ────────────────────────────────────────────
