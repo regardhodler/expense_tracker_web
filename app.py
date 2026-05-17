@@ -537,21 +537,21 @@ def page_dashboard(username: str):
         locked = [a for a in achievements if not a["unlocked"]]
         if unlocked:
             st.markdown(f"**{len(unlocked)} / {len(achievements)} unlocked**")
-        ach_cols = st.columns(min(len(achievements), 4))
-        for i, ach in enumerate(achievements):
-            with ach_cols[i % len(ach_cols)]:
-                opacity = "1" if ach["unlocked"] else "0.35"
-                border = "#c44dff" if ach["unlocked"] else "#333"
-                date_str = f"<br><span style='color:#888;font-size:0.65em'>Unlocked: {ach['unlocked_date']}</span>" if ach["unlocked_date"] else ""
-                st.markdown(
-                    f'<div style="background:#1a1a2e;border-radius:10px;padding:10px;margin:4px 0;'
-                    f'border:1px solid {border};opacity:{opacity};text-align:center">'
-                    f'<div style="font-size:1.8em">{ach["emoji"]}</div>'
-                    f'<div style="font-weight:bold;color:#e0e0e0;font-size:0.8em">{ach["name"]}</div>'
-                    f'<div style="color:#999;font-size:0.7em">{ach["description"]}{date_str}</div>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
+        st.markdown('<div style="display:flex;flex-wrap:wrap;gap:10px;">', unsafe_allow_html=True)
+        for ach in achievements:
+            opacity = "1" if ach.get("unlocked") else "0.35"
+            border = "#c44dff" if ach.get("unlocked") else "#333"
+            date_str = f"<div style='color:#888;font-size:0.65em'>Unlocked: {ach['unlocked_date']}</div>" if ach.get("unlocked_date") else ""
+            st.markdown(f"""
+<div style="background:#1a1a2e;border-radius:12px;padding:14px;
+border:1px solid {border};opacity:{opacity};text-align:center;
+min-width:140px;flex:1">
+  <div style="font-size:2em">{ach['emoji']}</div>
+  <div style="font-weight:bold;color:#e0e0e0;font-size:0.85em">{ach['name']}</div>
+  <div style="color:#999;font-size:0.72em;margin-top:4px">{ach['description']}</div>
+  {date_str}
+</div>""", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # --- Love History ---
     love_hist = get_love_history(all_rows_for_streaks)
