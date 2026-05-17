@@ -1961,18 +1961,20 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # FAB — off-screen Streamlit button clicked by visible floating HTML button
-    if st.button("fab", key="fab_trigger", help="__fab__"):
+    # FAB — off-screen Streamlit button; floating HTML button clicks it by text match
+    if st.button("__fab_open__", key="fab_trigger"):
         st.session_state["show_fab_dialog"] = True
 
     st.markdown("""
 <style>
-/* Move trigger button off-screen (still in DOM and JS-clickable) */
-div[data-testid="stButton"]:has(button[title="__fab__"]) {
+div[data-testid="stButton"]:has(button p) {
+    /* hide all stButtons whose inner p contains __fab_open__ via JS below */
+}
+.fab-offscreen {
     position: absolute !important;
     left: -9999px !important;
+    top: -9999px !important;
 }
-/* Floating pill button */
 .fab-pill {
     position: fixed;
     top: 50%;
@@ -1992,7 +1994,24 @@ div[data-testid="stButton"]:has(button[title="__fab__"]) {
     cursor: pointer;
 }
 </style>
-<button class="fab-pill" onclick='document.querySelector("[title=__fab__]").click()'>
+<script>
+(function(){
+  function setup(){
+    var btns = document.querySelectorAll('button');
+    for(var i=0;i<btns.length;i++){
+      if((btns[i].textContent||'').trim()==='__fab_open__'){
+        var w=btns[i];
+        while(w&&w.getAttribute('data-testid')!=='stButton') w=w.parentElement;
+        if(w) w.classList.add('fab-offscreen');
+        return;
+      }
+    }
+    setTimeout(setup,100);
+  }
+  setup();
+})();
+</script>
+<button class="fab-pill" onclick='(function(){var btns=document.querySelectorAll("button");for(var i=0;i<btns.length;i++){if((btns[i].textContent||"").trim()==="__fab_open__"){btns[i].click();return;}}})()'>
   ➕ Quick Add Expense
 </button>
 """, unsafe_allow_html=True)
