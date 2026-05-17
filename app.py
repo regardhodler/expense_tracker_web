@@ -356,8 +356,7 @@ def page_dashboard(username: str):
         st.markdown(styles.card_profile("wife", _profile_stats("wife")), unsafe_allow_html=True)
 
     if st.button("➕ Add Expense", use_container_width=True, type="primary", key="dash_add_btn"):
-        st.session_state["fab_open"] = True
-        st.rerun()
+        quick_add_dialog(username)
 
     st.divider()
 
@@ -2229,24 +2228,6 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # FAB — same-window link, open dialog directly in same rerun (no extra rerun)
-    st.markdown(
-        '<a href="?fab=1" target="_self" style="'
-        'position:fixed;top:50%;right:0;transform:translateY(-50%);'
-        'display:flex;align-items:center;'
-        'background:linear-gradient(135deg,#ff6b9d,#c44dff);'
-        'border-radius:28px 0 0 28px;padding:0 20px 0 16px;height:52px;'
-        'font-size:0.95rem;font-weight:bold;color:#fff;text-decoration:none;'
-        'box-shadow:-4px 4px 14px rgba(196,77,255,0.45);white-space:nowrap;z-index:9999;'
-        '">➕ Quick Add Expense</a>',
-        unsafe_allow_html=True,
-    )
-
-    if st.query_params.get("fab") == "1":
-        del st.query_params["fab"]
-        st.session_state["fab_open"] = True
-    if st.session_state.pop("fab_open", False):
-        quick_add_dialog(username)
 
     # Sidebar navigation
     page = st.sidebar.radio(
