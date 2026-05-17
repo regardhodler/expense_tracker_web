@@ -440,10 +440,18 @@ def jueds_monthly_chart(monthly_data: list[dict]) -> go.Figure:
         barmode="group",
         xaxis_title="Month",
         yaxis_title="Amount ($)",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+            bgcolor="rgba(30,30,50,0.85)",
+            bordercolor="#444",
+            borderwidth=1,
+            font=dict(color="#e0e0e0"),
+        ),
         plot_bgcolor="#0e1117",
         paper_bgcolor="#0e1117",
         font=dict(color="#e0e0e0"),
-        margin=dict(l=40, r=20, t=40, b=40),
+        xaxis=dict(gridcolor="#2a2a4a"),
+        yaxis=dict(gridcolor="#2a2a4a"),
+        margin=dict(l=40, r=20, t=60, b=40),
     )
     return fig
