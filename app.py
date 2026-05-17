@@ -732,14 +732,6 @@ min-width:140px;flex:1">
     month_df = rows_to_dataframe(month_rows)
     st.plotly_chart(spending_heatmap(month_df, today.year, today.month), use_container_width=True)
 
-    # Who spends more?
-    if month_rows:
-        st.subheader("💰 Who Spends More This Month?")
-        wsm_df = get_who_spends_more(rows_to_dataframe(month_rows))
-        if not wsm_df.empty:
-            st.plotly_chart(who_spends_more_chart(wsm_df), use_container_width=True)
-            st.dataframe(wsm_df, use_container_width=True, hide_index=True)
-
     # Over-budget warnings
     budgets = _cached_budgets()
     if budgets:
@@ -1831,43 +1823,29 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # Inject global CSS (hides sidebar, sets up card/nav styles)
-    st.markdown(styles.global_css(), unsafe_allow_html=True)
+    # Sidebar navigation
+    page = st.sidebar.radio(
+        "Navigate",
+        ["🏠 Dashboard", "📰 Feed", "➕ Add Expense", "📅 Monthly View",
+         "📊 Analysis & Reports", "💰 Budgets", "🔍 Search", "🏆 Rewards"],
+    )
 
-    # Inject app header
-    st.markdown(styles.app_header(username), unsafe_allow_html=True)
-
-    # Page routing via query params
-    PAGE_MAP = {
-        "home": page_dashboard,
-        "feed": page_feed,
-        "add": page_add_expense,
-        "rewards": page_rewards,
-        "more": page_more,
-        "analysis": page_analysis,
-        "search": page_search,
-        "budgets": page_budgets,
-        "monthly": page_monthly_view,
-    }
-    raw_page = st.query_params.get("page", "home")
-    page_key = raw_page if raw_page in PAGE_MAP else "home"
-
-    # FAB quick-add: render home behind dialog
-    if page_key == "add":
-        page_key = "home"
-        if not st.session_state.get("add_dialog_opened"):
-            st.session_state["add_dialog_opened"] = True
-            quick_add_dialog(username)
-        else:
-            del st.session_state["add_dialog_opened"]
-            st.query_params["page"] = "home"
-            st.rerun()
-
-    # Render current page
-    PAGE_MAP[page_key](username)
-
-    # Inject bottom nav
-    st.markdown(styles.bottom_nav(page_key), unsafe_allow_html=True)
+    if page == "🏠 Dashboard":
+        page_dashboard(username)
+    elif page == "📰 Feed":
+        page_feed(username)
+    elif page == "➕ Add Expense":
+        page_add_expense(username)
+    elif page == "📅 Monthly View":
+        page_monthly_view(username)
+    elif page == "📊 Analysis & Reports":
+        page_analysis(username)
+    elif page == "💰 Budgets":
+        page_budgets(username)
+    elif page == "🔍 Search":
+        page_search(username)
+    elif page == "🏆 Rewards":
+        page_rewards(username)
 
 
 if __name__ == "__main__":
