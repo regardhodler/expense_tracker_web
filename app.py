@@ -270,8 +270,10 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
 </style>
 """, unsafe_allow_html=True)
 
-    if st.button("➕ Quick Add Expense", use_container_width=True, type="primary", key="dash_add_btn"):
-        quick_add_dialog(username)
+    _btn_col, _, _, _ = st.columns(4)
+    with _btn_col:
+        if st.button("➕ Quick Add Expense", use_container_width=True, type="primary", key="dash_add_btn"):
+            quick_add_dialog(username)
 
     st.header("💕 Jude & Wincyl's Love Dashboard")
     _monthsary_banner()
