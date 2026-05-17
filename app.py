@@ -1676,6 +1676,11 @@ def page_manage_expenses(username: str):
                 e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
                 e_description = st.text_input("Description", value=expense["description"] or "",
                                               max_chars=MAX_DESCRIPTION_LENGTH)
+                from analysis import DISPLAY_NAMES
+                person_options = ["Jude", "Wincyl"]
+                current_person = DISPLAY_NAMES.get(expense.get("added_by", ""), "Jude")
+                e_added_for = st.selectbox("Who is this for?", person_options,
+                                           index=person_options.index(current_person) if current_person in person_options else 0)
                 e_writeoff = st.checkbox("🧾 Tax Write-Off", value=bool(expense.get("is_tax_writeoff", 0)))
                 col_save, col_cancel = st.columns(2)
                 with col_save:
@@ -1687,7 +1692,8 @@ def page_manage_expenses(username: str):
                     if not valid:
                         st.error(msg)
                     else:
-                        update_expense(editing_id, e_date, e_amount, e_category, e_description.strip(), e_writeoff)
+                        e_added_by = next((k for k, v in DISPLAY_NAMES.items() if v == e_added_for), expense.get("added_by"))
+                        update_expense(editing_id, e_date, e_amount, e_category, e_description.strip(), e_writeoff, e_added_by)
                         st.cache_data.clear()
                         st.session_state.pop("editing_expense_id", None)
                         st.toast("✅ Expense updated!")
@@ -1755,6 +1761,11 @@ def page_manage_expenses(username: str):
             e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
             e_description = st.text_input("Description", value=expense["description"] or "",
                                           max_chars=MAX_DESCRIPTION_LENGTH)
+            from analysis import DISPLAY_NAMES
+            person_options = ["Jude", "Wincyl"]
+            current_person = DISPLAY_NAMES.get(expense.get("added_by", ""), "Jude")
+            e_added_for = st.selectbox("Who is this for?", person_options,
+                                       index=person_options.index(current_person) if current_person in person_options else 0)
             e_writeoff = st.checkbox("🧾 Tax Write-Off", value=bool(expense.get("is_tax_writeoff", 0)))
 
             col_save, col_cancel = st.columns(2)
@@ -1771,7 +1782,8 @@ def page_manage_expenses(username: str):
                 if not valid:
                     st.error(msg)
                 else:
-                    update_expense(editing_id, e_date, e_amount, e_category, e_description.strip(), e_writeoff)
+                    e_added_by = next((k for k, v in DISPLAY_NAMES.items() if v == e_added_for), expense.get("added_by"))
+                    update_expense(editing_id, e_date, e_amount, e_category, e_description.strip(), e_writeoff, e_added_by)
                     st.session_state.pop("editing_expense_id", None)
                     st.success("Expense updated!")
                     st.rerun()
