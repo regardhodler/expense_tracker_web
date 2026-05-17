@@ -2,7 +2,7 @@
 
 import calendar
 import io
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 import streamlit as st
@@ -17,6 +17,7 @@ from database import (
     get_savings_goals, add_savings_goal, update_savings_goal_progress,
     complete_savings_goal, delete_savings_goal,
     add_date_night, get_date_nights, get_date_night_dates, delete_date_night,
+    get_reactions, add_reaction,
 )
 from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
@@ -1584,7 +1585,62 @@ def page_savings_goals(username: str):
 
 def page_feed(username: str):
     st.header("📰 Feed")
-    st.info("Feed coming soon...")
+
+    all_rows = _cached_all_expenses()
+    if not all_rows:
+        st.info("No expenses yet — add your first one! 💕")
+        return
+
+    sorted_rows = sorted(all_rows, key=lambda r: str(r.get("date", ""))[:10], reverse=True)
+
+    PAGE_SIZE = 20
+    offset = st.session_state.get("feed_offset", 0)
+    page_rows = sorted_rows[offset: offset + PAGE_SIZE]
+
+    expense_ids = [r["id"] for r in page_rows if "id" in r]
+    reactions_map = get_reactions(expense_ids)
+
+    from datetime import date as _date
+    today_str = str(_date.today())
+    yesterday_str = str(_date.today() - timedelta(days=1))
+
+    groups: dict[str, list] = {"Today": [], "Yesterday": [], "Past": []}
+    for row in page_rows:
+        d = str(row.get("date", ""))[:10]
+        if d == today_str:
+            groups["Today"].append(row)
+        elif d == yesterday_str:
+            groups["Yesterday"].append(row)
+        else:
+            groups["Past"].append(row)
+
+    for group_name, group_rows in groups.items():
+        if not group_rows:
+            continue
+        st.markdown(f"**{group_name}**")
+        for row in group_rows:
+            expense_id = row.get("id", 0)
+            row_reactions = reactions_map.get(expense_id, [])
+            st.markdown(
+                styles.card_expense(row, row_reactions, username),
+                unsafe_allow_html=True,
+            )
+            react_cols = st.columns(len(styles.REACTION_EMOJIS))
+            for j, emoji in enumerate(styles.REACTION_EMOJIS):
+                with react_cols[j]:
+                    count = sum(1 for r in row_reactions if r["emoji"] == emoji)
+                    label = f"{emoji} {count}" if count > 0 else emoji
+                    if st.button(label, key=f"react_{expense_id}_{emoji}", use_container_width=True):
+                        add_reaction(expense_id, username, emoji)
+                        st.cache_data.clear()
+                        st.rerun()
+
+    if offset + PAGE_SIZE < len(sorted_rows):
+        if st.button("Load more..."):
+            st.session_state["feed_offset"] = offset + PAGE_SIZE
+            st.rerun()
+    else:
+        st.caption("You've seen everything! 💕")
 
 
 def page_more(username: str):
