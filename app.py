@@ -1386,18 +1386,18 @@ def page_budgets(username: str):
                     st.session_state[confirm_key] = True
                     st.rerun()
         avg = _avg_by_cat.get(cat, 0)
-        avg_vs_budget = ""
         if avg > 0 and limit_val > 0:
             diff = avg - limit_val
             if diff > 0:
-                avg_vs_budget = f" · <span style='color:#e74c3c'>avg is ${diff:,.0f} over budget</span>"
+                diff_html = f'<span style="color:#e74c3c"> · avg is ${diff:,.0f} over budget</span>'
             else:
-                avg_vs_budget = f" · <span style='color:#2ecc71'>avg is ${-diff:,.0f} under budget</span>"
-        ref_parts = [f"avg/month: <strong>${avg:,.2f}</strong>{avg_vs_budget}"]
-        if b.get("notes"):
-            ref_parts.append(f"💬 {b['notes']}")
+                diff_html = f'<span style="color:#2ecc71"> · avg is ${-diff:,.0f} under budget</span>'
+        else:
+            diff_html = ""
+        notes_html = f' &nbsp;|&nbsp; 💬 {b["notes"]}' if b.get("notes") else ""
         st.markdown(
-            f'<span style="color:#888;font-size:0.78em">{" &nbsp;|&nbsp; ".join(ref_parts)}</span>',
+            f'<div style="color:#888;font-size:0.78em;margin-top:2px">'
+            f'avg/month: <strong>${avg:,.2f}</strong>{diff_html}{notes_html}</div>',
             unsafe_allow_html=True,
         )
 
