@@ -1291,6 +1291,33 @@ def page_analysis(username: str):
 def page_budgets(username: str):
     st.header("Budget Tracking")
 
+    editing_budget = st.session_state.get("editing_budget_cat")
+
+    # Edit form (shown inline when editing)
+    if editing_budget:
+        b_all = get_budgets()
+        b_rec = next((b for b in b_all if b["category"] == editing_budget), None)
+        if b_rec:
+            st.subheader(f"Edit Budget: {editing_budget}")
+            with st.form("edit_budget_form"):
+                e_limit = st.number_input("Monthly Limit ($)", min_value=0.01, max_value=MAX_AMOUNT,
+                                          step=10.0, format="%.2f", value=float(b_rec["monthly_limit"]))
+                e_notes = st.text_area("Comments (optional)", value=b_rec.get("notes", ""), max_chars=300)
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    save = st.form_submit_button("Save Changes", use_container_width=True, type="primary")
+                with col_cancel:
+                    cancel = st.form_submit_button("Cancel", use_container_width=True)
+                if save:
+                    set_budget(editing_budget, e_limit, username, e_notes)
+                    st.session_state.pop("editing_budget_cat", None)
+                    st.toast(f"✅ Budget for {editing_budget} updated!")
+                    st.rerun()
+                if cancel:
+                    st.session_state.pop("editing_budget_cat", None)
+                    st.rerun()
+            return
+
     # Set budgets
     st.subheader("Set Monthly Budgets")
     with st.form("budget_form"):
@@ -1318,7 +1345,7 @@ def page_budgets(username: str):
         spent = category_totals.get(cat, 0)
         pct = min(spent / limit_val, 1.0) if limit_val > 0 else 0
 
-        col1, col2, col3 = st.columns([3, 1, 1])
+        col1, col2, col3, col_edit, col_del = st.columns([3, 1, 1, 0.4, 0.4])
         with col1:
             st.progress(pct, text=f"{cat}")
         with col2:
@@ -1328,6 +1355,22 @@ def page_budgets(username: str):
                 st.error(f"Over by ${spent - limit_val:,.2f}")
             else:
                 st.caption(f"${limit_val - spent:,.2f} left")
+        with col_edit:
+            if st.button("✏️", key=f"edit_budget_{cat}", help=f"Edit {cat} budget"):
+                st.session_state["editing_budget_cat"] = cat
+                st.rerun()
+        with col_del:
+            confirm_key = f"confirm_del_budget_{cat}"
+            if st.session_state.get(confirm_key):
+                if st.button("✓", key=f"confirm_yes_budget_{cat}", help="Confirm delete"):
+                    delete_budget(cat)
+                    st.session_state.pop(confirm_key, None)
+                    st.toast(f"🗑️ {cat} budget deleted.")
+                    st.rerun()
+            else:
+                if st.button("🗑️", key=f"del_budget_{cat}", help=f"Delete {cat} budget"):
+                    st.session_state[confirm_key] = True
+                    st.rerun()
         if b.get("notes"):
             st.caption(f"💬 {b['notes']}")
 
