@@ -1958,7 +1958,7 @@ def main():
     st.markdown("""
 <style>
 .fab-float {
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 9999;
+    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
     background: linear-gradient(135deg, #ff6b9d, #c44dff);
     border-radius: 50%; width: 56px; height: 56px;
     display: flex; align-items: center; justify-content: center;
@@ -1969,15 +1969,13 @@ def main():
 <a href="?fab=1" class="fab-float" title="Quick Add Expense">➕</a>
 """, unsafe_allow_html=True)
 
-    # FAB quick-add dialog
+    # FAB quick-add dialog — clear param immediately so X-close doesn't reopen
     if st.query_params.get("fab") == "1":
-        if not st.session_state.get("fab_dialog_opened"):
-            st.session_state["fab_dialog_opened"] = True
-            quick_add_dialog(username)
-        else:
-            del st.session_state["fab_dialog_opened"]
-            st.query_params.clear()
-            st.rerun()
+        del st.query_params["fab"]
+        st.session_state["show_fab_dialog"] = True
+        st.rerun()
+    if st.session_state.pop("show_fab_dialog", False):
+        quick_add_dialog(username)
 
     # Sidebar navigation
     page = st.sidebar.radio(

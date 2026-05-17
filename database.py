@@ -698,7 +698,7 @@ def get_reactions(expense_ids: list[int]) -> dict[int, list[dict]]:
     placeholders = ",".join("?" * len(expense_ids))
     rows = conn.execute(
         f"SELECT expense_id, reacted_by, emoji FROM reactions WHERE expense_id IN ({placeholders})",
-        expense_ids,
+        tuple(expense_ids),
     ).fetchall()
     result: dict = {}
     for expense_id, reacted_by, emoji in rows:
