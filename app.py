@@ -355,6 +355,10 @@ def page_dashboard(username: str):
     with pc2:
         st.markdown(styles.card_profile("wife", _profile_stats("wife")), unsafe_allow_html=True)
 
+    if st.button("➕ Add Expense", use_container_width=True, type="primary", key="dash_add_btn"):
+        st.session_state["fab_open"] = True
+        st.rerun()
+
     st.divider()
 
     col1, col2 = st.columns(2)
@@ -2243,11 +2247,6 @@ def main():
         st.session_state["fab_open"] = True
     if st.session_state.pop("fab_open", False):
         quick_add_dialog(username)
-
-    # Sidebar quick-add button (WebSocket — no page reload)
-    if st.sidebar.button("➕ Add Expense", use_container_width=True, type="primary"):
-        st.session_state["fab_open"] = True
-        st.rerun()
 
     # Sidebar navigation
     page = st.sidebar.radio(
