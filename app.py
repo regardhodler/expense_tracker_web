@@ -1967,7 +1967,7 @@ def main():
 }
 </style>
 <button class="fab-float" title="Quick Add Expense"
-  onclick="window.parent.location.href = window.parent.location.pathname + '?fab=1'">➕</button>
+  onclick="var u=new URL(window.location.href);u.searchParams.set('fab','1');window.location.href=u.toString();">➕</button>
 """, unsafe_allow_html=True)
 
     # FAB quick-add dialog — clear param immediately so X-close doesn't reopen
