@@ -1961,13 +1961,13 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # FAB — real Streamlit button styled as floating pill via JS
-    if st.button("➕ Quick Add Expense", key="fab_trigger"):
+    # FAB — CSS targets button by its help/title attribute, no JS needed
+    if st.button("➕ Quick Add Expense", key="fab_trigger", help="__fab__"):
         st.session_state["show_fab_dialog"] = True
 
     st.markdown("""
 <style>
-.fab-pill {
+button[title="__fab__"] {
     position: fixed !important;
     top: 50% !important;
     right: 0 !important;
@@ -1983,32 +1983,15 @@ def main():
     color: #fff !important;
     box-shadow: -4px 4px 14px rgba(196,77,255,0.45) !important;
     white-space: nowrap !important;
-    cursor: pointer !important;
     width: auto !important;
 }
+div[data-testid="stButton"]:has(button[title="__fab__"]) {
+    height: 0 !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
 </style>
-<script>
-(function() {
-    function styleFab() {
-        var btns = document.querySelectorAll('button');
-        for (var i = 0; i < btns.length; i++) {
-            if ((btns[i].textContent || '').includes('Quick Add Expense')) {
-                btns[i].className = 'fab-pill';
-                var wrap = btns[i].parentElement;
-                while (wrap && wrap.getAttribute('data-testid') !== 'stButton') {
-                    wrap = wrap.parentElement;
-                }
-                if (wrap) {
-                    wrap.style.cssText = 'position:fixed;top:50%;right:0;transform:translateY(-50%);z-index:9999;width:auto;';
-                }
-                return;
-            }
-        }
-        setTimeout(styleFab, 100);
-    }
-    setTimeout(styleFab, 200);
-})();
-</script>
 """, unsafe_allow_html=True)
 
     if st.session_state.pop("show_fab_dialog", False):
