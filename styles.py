@@ -288,7 +288,6 @@ def card_expense(row: dict, reactions: list[dict], current_user: str) -> str:
     <div class="avatar">{initial}</div>
     <div>
       {badge_html}
-      <div style="color:#666;font-size:0.72em">{time_str}</div>
     </div>
   </div>
   <div style="font-size:1.15em;font-weight:bold;color:#ff6b9d">{cat_emoji} &#36;{amount:,.2f} <span style="color:#888;font-weight:normal;font-size:0.8em">{cat}</span></div>
