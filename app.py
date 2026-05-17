@@ -1962,41 +1962,52 @@ def main():
         st.session_state["recurring_processed"] = True
 
     # Hidden Streamlit button — JS floating button clicks this to avoid any URL navigation
-    if st.button("➕__fab__", key="fab_trigger"):
+    if st.button("__fab_trigger__", key="fab_trigger"):
         st.session_state["show_fab_dialog"] = True
 
     st.markdown("""
 <style>
+/* Hide the trigger button and all its Streamlit wrappers */
+[data-testid="stButton"]:has(button p) button p { font-size: 0; }
+.fab-hidden-wrap { display: none !important; }
 .fab-float {
-    position: fixed; top: 50%; right: 24px; transform: translateY(-50%);
+    position: fixed; top: 50%; right: 0; transform: translateY(-50%);
     z-index: 9999; background: linear-gradient(135deg, #ff6b9d, #c44dff);
-    border-radius: 50%; width: 56px; height: 56px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.8rem; border: none; cursor: pointer; color: #fff;
-    box-shadow: 0 4px 14px rgba(196,77,255,0.45);
+    border-radius: 28px 0 0 28px;
+    padding: 0 20px 0 16px; height: 52px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 0.95rem; font-weight: bold; border: none; cursor: pointer; color: #fff;
+    box-shadow: -4px 4px 14px rgba(196,77,255,0.45);
+    white-space: nowrap;
 }
 </style>
 <script>
 (function() {
-    function setup() {
+    function hideTrigger() {
         var btns = document.querySelectorAll('button');
-        for (var b of btns) {
-            if (b.textContent.trim() === '➕__fab__') {
-                b.closest('div[data-testid="stButton"]').style.display = 'none';
+        for (var i = 0; i < btns.length; i++) {
+            if (btns[i].innerText && btns[i].innerText.trim() === '__fab_trigger__') {
+                var wrap = btns[i];
+                while (wrap && wrap.getAttribute('data-testid') !== 'stButton') {
+                    wrap = wrap.parentElement;
+                }
+                if (wrap) { wrap.className += ' fab-hidden-wrap'; }
                 return;
             }
         }
-        setTimeout(setup, 100);
+        setTimeout(hideTrigger, 80);
     }
-    setup();
+    hideTrigger();
 })();
 </script>
-<button class="fab-float" title="Quick Add Expense" onclick="
+<button class="fab-float" onclick="
     var btns = document.querySelectorAll('button');
-    for (var b of btns) {
-        if (b.textContent.trim() === '➕__fab__') { b.click(); return; }
+    for (var i = 0; i < btns.length; i++) {
+        if (btns[i].innerText && btns[i].innerText.trim() === '__fab_trigger__') {
+            btns[i].click(); return;
+        }
     }
-">➕</button>
+">➕ Quick Add Expense</button>
 """, unsafe_allow_html=True)
 
     if st.session_state.pop("show_fab_dialog", False):
