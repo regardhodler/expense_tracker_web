@@ -1954,22 +1954,18 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # Floating ➕ button — plain HTML form GET so browser navigates in same window
-    st.markdown("""
-<style>
-.fab-float {
-    position: fixed; top: 50%; right: 24px; transform: translateY(-50%); z-index: 9999;
-    background: linear-gradient(135deg, #ff6b9d, #c44dff);
-    border-radius: 50%; width: 56px; height: 56px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.6em; box-shadow: 0 4px 16px #c44dff55;
-    border: none; cursor: pointer; color: #fff;
-}
-</style>
-<form method="get" style="margin:0;padding:0">
-  <button type="submit" name="fab" value="1" class="fab-float" title="Quick Add Expense">➕</button>
-</form>
-""", unsafe_allow_html=True)
+    # Floating ➕ button — inline style anchor (avoids Streamlit markdown link rewriting)
+    st.markdown(
+        '<a href="?fab=1" title="Quick Add Expense" style="'
+        'position:fixed;top:50%;right:24px;transform:translateY(-50%);'
+        'display:flex;align-items:center;justify-content:center;'
+        'width:56px;height:56px;border-radius:50%;'
+        'background:linear-gradient(135deg,#ff6b9d,#c44dff);'
+        'color:white;font-size:1.8rem;text-decoration:none;'
+        'box-shadow:0 4px 14px rgba(196,77,255,0.45);z-index:9999;'
+        '">➕</a>',
+        unsafe_allow_html=True,
+    )
 
     # FAB quick-add dialog — clear param immediately so X-close doesn't reopen
     if st.query_params.get("fab") == "1":
