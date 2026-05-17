@@ -287,9 +287,7 @@ def card_expense(row: dict, reactions: list[dict], current_user: str) -> str:
 <div class="exp-card" data-expense-id="{expense_id}">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
     <div class="avatar">{initial}</div>
-    <div>
-      {badge_html}
-    </div>
+    {badge_html}
   </div>
   <div style="font-size:1.15em;font-weight:bold;color:#ff6b9d">{cat_emoji} &#36;{amount:,.2f} <span style="color:#888;font-weight:normal;font-size:0.8em">{cat}</span></div>
   {desc_html}
