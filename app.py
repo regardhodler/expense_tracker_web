@@ -32,6 +32,7 @@ from visualization import (
     who_spends_more_chart, savings_goal_chart, yearly_mom_chart,
 )
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
+import styles
 
 # ---------------------------------------------------------------------------
 # Cached dashboard queries (short TTL to avoid stale data on reruns)
@@ -1581,6 +1582,35 @@ def page_savings_goals(username: str):
                     st.rerun()
 
 
+def page_feed(username: str):
+    st.header("📰 Feed")
+    st.info("Feed coming soon...")
+
+
+def page_more(username: str):
+    st.header("More")
+    st.markdown("**Navigation**")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("💰 Budgets", use_container_width=True):
+            st.query_params["page"] = "budgets"
+            st.rerun()
+        if st.button("🔍 Search", use_container_width=True):
+            st.query_params["page"] = "search"
+            st.rerun()
+    with col2:
+        if st.button("📅 Monthly View", use_container_width=True):
+            st.query_params["page"] = "monthly"
+            st.rerun()
+        if st.button("📊 Analysis", use_container_width=True):
+            st.query_params["page"] = "analysis"
+            st.rerun()
+
+
+def page_rewards(username: str):
+    page_analysis(username)
+
+
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1603,34 +1633,32 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # Logged in
-    st.sidebar.title(f"💕 Hi, {name}!")
-    st.sidebar.caption("Jude loves Wincyl forever 💕")
-    if date.today().day == 16:
-        st.sidebar.markdown("💕 **Happy Monthsary!** 💕")
-    authenticator.logout("Logout", "sidebar")
+    # Inject global CSS (hides sidebar, sets up card/nav styles)
+    st.markdown(styles.global_css(), unsafe_allow_html=True)
 
-    dark_mode = st.sidebar.checkbox("🌙 Dark Mode", value=True, key="dark_mode")
-    inject_dark_mode_css(dark_mode)
+    # Inject app header
+    st.markdown(styles.app_header(username), unsafe_allow_html=True)
 
-    page = st.sidebar.radio(
-        "Navigate",
-        ["Dashboard", "Add Expense", "Monthly View", "Analysis",
-         "Search", "Budgets", "Recurring Expense", "Manage Expenses", "Savings Goals"],
-    )
-
-    pages = {
-        "Dashboard": page_dashboard,
-        "Add Expense": page_add_expense,
-        "Monthly View": page_monthly_view,
-        "Analysis": page_analysis,
-        "Search": page_search,
-        "Budgets": page_budgets,
-        "Recurring Expense": page_recurring,
-        "Manage Expenses": page_manage_expenses,
-        "Savings Goals": page_savings_goals,
+    # Page routing via query params
+    PAGE_MAP = {
+        "home": page_dashboard,
+        "feed": page_feed,
+        "add": page_add_expense,
+        "rewards": page_rewards,
+        "more": page_more,
+        "analysis": page_analysis,
+        "search": page_search,
+        "budgets": page_budgets,
+        "monthly": page_monthly_view,
     }
-    pages[page](username)
+    raw_page = st.query_params.get("page", "home")
+    page_key = raw_page if raw_page in PAGE_MAP else "home"
+
+    # Render current page
+    PAGE_MAP[page_key](username)
+
+    # Inject bottom nav
+    st.markdown(styles.bottom_nav(page_key), unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
