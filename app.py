@@ -1961,53 +1961,58 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # Hidden Streamlit button — JS floating button clicks this to avoid any URL navigation
+    # FAB trigger — JS restyling turns this into the floating pill button
     if st.button("__fab_trigger__", key="fab_trigger"):
         st.session_state["show_fab_dialog"] = True
 
     st.markdown("""
 <style>
-/* Hide the trigger button and all its Streamlit wrappers */
-[data-testid="stButton"]:has(button p) button p { font-size: 0; }
-.fab-hidden-wrap { display: none !important; }
-.fab-float {
-    position: fixed; top: 50%; right: 0; transform: translateY(-50%);
-    z-index: 9999; background: linear-gradient(135deg, #ff6b9d, #c44dff);
-    border-radius: 28px 0 0 28px;
-    padding: 0 20px 0 16px; height: 52px;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    font-size: 0.95rem; font-weight: bold; border: none; cursor: pointer; color: #fff;
-    box-shadow: -4px 4px 14px rgba(196,77,255,0.45);
-    white-space: nowrap;
+.fab-pill {
+    position: fixed !important;
+    top: 50% !important;
+    right: 0 !important;
+    transform: translateY(-50%) !important;
+    z-index: 9999 !important;
+    background: linear-gradient(135deg, #ff6b9d, #c44dff) !important;
+    border-radius: 28px 0 0 28px !important;
+    padding: 0 20px 0 16px !important;
+    height: 52px !important;
+    font-size: 0.95rem !important;
+    font-weight: bold !important;
+    border: none !important;
+    color: #fff !important;
+    box-shadow: -4px 4px 14px rgba(196,77,255,0.45) !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
 }
 </style>
 <script>
 (function() {
-    function hideTrigger() {
+    function styleFab() {
         var btns = document.querySelectorAll('button');
         for (var i = 0; i < btns.length; i++) {
-            if ((btns[i].textContent || '').trim() === '__fab_trigger__') {
-                var wrap = btns[i];
+            var txt = (btns[i].textContent || '').trim();
+            if (txt === '__fab_trigger__') {
+                btns[i].textContent = '➕ Quick Add Expense';
+                btns[i].className = 'fab-pill';
+                var wrap = btns[i].parentElement;
                 while (wrap && wrap.getAttribute('data-testid') !== 'stButton') {
                     wrap = wrap.parentElement;
                 }
-                if (wrap) { wrap.className += ' fab-hidden-wrap'; }
+                if (wrap) {
+                    wrap.style.cssText = 'position:fixed;top:50%;right:0;transform:translateY(-50%);z-index:9999;';
+                }
                 return;
             }
         }
-        setTimeout(hideTrigger, 80);
+        setTimeout(styleFab, 80);
     }
-    hideTrigger();
+    styleFab();
+    // Re-apply after Streamlit rerenders
+    var obs = new MutationObserver(styleFab);
+    obs.observe(document.body, { childList: true, subtree: true });
 })();
 </script>
-<button class="fab-float" onclick="
-    var btns = document.querySelectorAll('button');
-    for (var i = 0; i < btns.length; i++) {
-        if ((btns[i].textContent || '').trim() === '__fab_trigger__') {
-            btns[i].click(); return;
-        }
-    }
-">➕ Quick Add Expense</button>
 """, unsafe_allow_html=True)
 
     if st.session_state.pop("show_fab_dialog", False):
