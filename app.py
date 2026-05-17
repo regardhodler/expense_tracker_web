@@ -706,6 +706,25 @@ def page_dashboard(username: str):
 
 
 
+@st.dialog("➕ Quick Add")
+def quick_add_dialog(username: str):
+    """Quick expense entry from FAB."""
+    amount = st.number_input("Amount ($)", min_value=0.01, max_value=float(MAX_AMOUNT), step=1.0, format="%.2f")
+    category = st.selectbox("Category", CATEGORIES)
+    description = st.text_input("Description (optional)", max_chars=MAX_DESCRIPTION_LENGTH)
+    exp_date = st.date_input("Date", value=date.today())
+
+    if st.button("Add Expense 💕", use_container_width=True, type="primary"):
+        valid, msg = validate_expense(amount, category, description)
+        if not valid:
+            st.error(msg)
+        else:
+            add_expense(exp_date, float(amount), category, description, username, False)
+            st.cache_data.clear()
+            st.success("Added! 🎉")
+            st.rerun()
+
+
 def page_add_expense(username: str):
     st.header("Add Expense")
 
@@ -1741,6 +1760,17 @@ def main():
     }
     raw_page = st.query_params.get("page", "home")
     page_key = raw_page if raw_page in PAGE_MAP else "home"
+
+    # FAB quick-add: render home behind dialog
+    if page_key == "add":
+        page_key = "home"
+        if not st.session_state.get("add_dialog_opened"):
+            st.session_state["add_dialog_opened"] = True
+            quick_add_dialog(username)
+        else:
+            del st.session_state["add_dialog_opened"]
+            st.query_params["page"] = "home"
+            st.rerun()
 
     # Render current page
     PAGE_MAP[page_key](username)
