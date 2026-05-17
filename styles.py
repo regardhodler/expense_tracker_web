@@ -281,12 +281,13 @@ def card_expense(row: dict, reactions: list[dict], current_user: str) -> str:
 
     expense_id = row.get("id", 0)
     amount = row.get("amount", 0)
+    badge_html = f'<div style="font-size:0.75em">{badge}</div>' if badge else ""
     return f"""
 <div class="exp-card" data-expense-id="{expense_id}">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
     <div class="avatar">{initial}</div>
     <div>
-      {f'<div style="font-size:0.75em">{badge}</div>' if badge else ''}
+      {badge_html}
       <div style="color:#666;font-size:0.72em">{time_str}</div>
     </div>
   </div>
@@ -310,7 +311,6 @@ def card_profile(user: str, stats: dict) -> str:
     return f"""
 <div class="profile-card">
   <div class="avatar" style="margin:0 auto 8px">{initial}</div>
-  <div style="font-weight:bold;color:#e0e0e0">{name}</div>
   <div style="color:#888;font-size:0.75em">{tier_emoji} {tier_label}</div>
   {f'<div style="color:#666;font-size:0.72em;margin-top:4px">🔥 {streak} day streak</div>' if streak > 0 else ''}
   {f'<div style="color:#666;font-size:0.72em">{top_cat}</div>' if top_cat else ''}
