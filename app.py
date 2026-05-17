@@ -1986,7 +1986,7 @@ def main():
     function hideTrigger() {
         var btns = document.querySelectorAll('button');
         for (var i = 0; i < btns.length; i++) {
-            if (btns[i].innerText && btns[i].innerText.trim() === '__fab_trigger__') {
+            if ((btns[i].textContent || '').trim() === '__fab_trigger__') {
                 var wrap = btns[i];
                 while (wrap && wrap.getAttribute('data-testid') !== 'stButton') {
                     wrap = wrap.parentElement;
@@ -2003,7 +2003,7 @@ def main():
 <button class="fab-float" onclick="
     var btns = document.querySelectorAll('button');
     for (var i = 0; i < btns.length; i++) {
-        if (btns[i].innerText && btns[i].innerText.trim() === '__fab_trigger__') {
+        if ((btns[i].textContent || '').trim() === '__fab_trigger__') {
             btns[i].click(); return;
         }
     }
