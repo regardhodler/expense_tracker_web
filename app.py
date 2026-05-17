@@ -1193,6 +1193,55 @@ def page_analysis(username: str):
     display_summary["% of Total"] = display_summary["% of Total"].map("{:.1f}%".format)
     st.dataframe(display_summary, use_container_width=True, hide_index=True)
 
+    # Monthly average per category vs current period
+    _all_hist = _cached_all_expenses()
+    _cur_ym = date.today().strftime("%Y-%m")
+    _hist_cat_months: dict[str, dict[str, float]] = {}
+    for _r in _all_hist:
+        _ym = str(_r.get("date", ""))[:7]
+        _cat = _r.get("category", "Others")
+        if _ym and _ym != _cur_ym:
+            _hist_cat_months.setdefault(_cat, {})
+            _hist_cat_months[_cat][_ym] = _hist_cat_months[_cat].get(_ym, 0) + _r.get("amount", 0)
+    _monthly_avg: dict[str, float] = {
+        _cat: sum(_ms.values()) / len(_ms)
+        for _cat, _ms in _hist_cat_months.items() if _ms
+    }
+
+    if _monthly_avg:
+        st.subheader("📊 vs Your Monthly Average")
+        avg_rows = []
+        for _, row in summary.iterrows():
+            cat = row["Category"]
+            this_period = row["Amount"]
+            avg = _monthly_avg.get(cat, 0)
+            if avg > 0:
+                diff = this_period - avg
+                diff_str = f"+${diff:,.2f}" if diff >= 0 else f"-${-diff:,.2f}"
+                avg_rows.append({
+                    "Category": cat,
+                    "This Period": f"${this_period:,.2f}",
+                    "Avg/Month": f"${avg:,.2f}",
+                    "Difference": diff_str,
+                    "_diff": diff,
+                })
+
+        if avg_rows:
+            avg_df = pd.DataFrame(avg_rows)
+
+            def _style_diff(row):
+                styles_list = [""] * len(row)
+                idx = list(row.index).index("Difference")
+                raw = avg_rows[row.name]["_diff"]
+                styles_list[idx] = "color: #e74c3c" if raw > 0 else "color: #2ecc71"
+                return styles_list
+
+            st.dataframe(
+                avg_df.drop(columns=["_diff"]).style.apply(_style_diff, axis=1),
+                use_container_width=True,
+                hide_index=True,
+            )
+
     # Warnings for high-percentage categories
     for _, row in summary.iterrows():
         pct = row["% of Total"]
