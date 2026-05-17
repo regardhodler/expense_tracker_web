@@ -1494,6 +1494,179 @@ def page_search(username: str):
 
 
 def page_manage_expenses(username: str):
+    st.header("🗂️ Manage Expenses")
+    tab_add, tab_search, tab_edit = st.tabs(["➕ Add", "🔍 Search & Filter", "✏️ Edit / Delete"])
+
+    # ── ADD ────────────────────────────────────────────────────────────────
+    with tab_add:
+        with st.form("manage_add_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                exp_date = st.date_input("Date", value=date.today(), key="mng_date")
+            with col2:
+                amount = st.number_input("Amount ($)", min_value=0.01, max_value=float(MAX_AMOUNT),
+                                         step=0.01, format="%.2f", key="mng_amount")
+            category = st.selectbox("Category", CATEGORIES, key="mng_cat")
+            if category == "Others":
+                description = st.text_input("Description (required for Others)", "",
+                                            max_chars=MAX_DESCRIPTION_LENGTH, key="mng_desc")
+            else:
+                description = st.text_input("Description (optional)", "",
+                                            max_chars=MAX_DESCRIPTION_LENGTH, key="mng_desc2")
+            added_for = st.selectbox("Who is this for?", ["Jude", "Wincyl"], key="mng_for")
+            is_writeoff = st.checkbox("🧾 Tax Write-Off", value=False, key="mng_writeoff")
+            submitted = st.form_submit_button("Add Expense", use_container_width=True, type="primary")
+
+            if submitted:
+                from analysis import DISPLAY_NAMES
+                import random as _random
+                day_expenses = get_expenses_between(exp_date, exp_date)
+                confirm = st.session_state.get("_mng_confirm_dup", False)
+                valid, msg = validate_expense(amount, category, description.strip(),
+                                              existing_expenses=day_expenses,
+                                              exp_date=exp_date, confirm_duplicate=confirm)
+                if not valid:
+                    if msg.startswith("DUPLICATE:"):
+                        st.warning(msg.replace("DUPLICATE: ", ""))
+                        st.session_state["_mng_confirm_dup"] = True
+                    else:
+                        st.error(msg)
+                else:
+                    added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
+                    add_expense(exp_date, amount, category, description.strip(), added_by, is_writeoff)
+                    st.cache_data.clear()
+                    st.session_state.pop("_mng_confirm_dup", None)
+                    st.toast(f"✅ ${amount:,.2f} · {category} added!")
+
+    # ── SEARCH ─────────────────────────────────────────────────────────────
+    with tab_search:
+        search_text = st.text_input("Search description", "", placeholder="e.g. groceries, rent...", key="mng_q")
+        col1, col2 = st.columns(2)
+        with col1:
+            start = st.date_input("From", value=date.today().replace(day=1), key="mng_s_start")
+        with col2:
+            end = st.date_input("To", value=date.today(), key="mng_s_end")
+        col3, col4 = st.columns(2)
+        with col3:
+            sel_cats = st.multiselect("Categories", CATEGORIES, default=CATEGORIES, key="mng_s_cats")
+        with col4:
+            sel_users = st.multiselect("Added by", ["Jude", "Wincyl"], default=["Jude", "Wincyl"], key="mng_s_users")
+        col5, col6 = st.columns(2)
+        with col5:
+            min_amt = st.number_input("Min ($)", min_value=0.0, value=0.0, step=1.0, format="%.2f", key="mng_s_min")
+        with col6:
+            max_amt = st.number_input("Max ($)", min_value=0.0, value=0.0, step=1.0, format="%.2f",
+                                      help="0 = no limit", key="mng_s_max")
+
+        rows = get_expenses_between(start, end)
+        df = rows_to_dataframe(rows)
+        if df.empty:
+            st.info("No expenses in this date range.")
+        else:
+            _DISP = {"husband": "Jude", "wife": "Wincyl"}
+            mask = pd.Series(True, index=df.index)
+            if search_text.strip():
+                mask &= df["description"].fillna("").str.contains(search_text.strip(), case=False)
+            if sel_cats:
+                mask &= df["category"].isin(sel_cats)
+            if sel_users:
+                mask &= df["added_by"].isin([k for k, v in _DISP.items() if v in sel_users])
+            if min_amt > 0:
+                mask &= df["amount"] >= min_amt
+            if max_amt > 0:
+                mask &= df["amount"] <= max_amt
+            filtered = df[mask]
+            if filtered.empty:
+                st.info("No expenses match your filters.")
+            else:
+                total = filtered["amount"].sum()
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Total", f"${total:,.2f}")
+                m2.metric("Average", f"${filtered['amount'].mean():,.2f}")
+                m3.metric("Count", str(len(filtered)))
+                disp = filtered[["date", "amount", "category", "description", "added_by"]].copy()
+                disp["date"] = disp["date"].dt.strftime("%Y-%m-%d")
+                disp["added_by"] = disp["added_by"].map(_DISP)
+                disp["amount"] = filtered["amount"].map("${:,.2f}".format)
+                disp.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+                st.dataframe(disp, use_container_width=True, hide_index=True)
+
+    # ── EDIT / DELETE ───────────────────────────────────────────────────────
+    with tab_edit:
+        # Edit form
+        editing_id = st.session_state.get("editing_expense_id")
+        if editing_id is not None:
+            expense = get_expense_by_id(editing_id)
+            if expense is None:
+                st.error("Expense not found.")
+                st.session_state.pop("editing_expense_id", None)
+                st.rerun()
+                return
+            st.subheader(f"Editing expense #{editing_id}")
+            with st.form("edit_expense_form"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    e_date = st.date_input("Date", value=datetime.strptime(expense["date"], "%Y-%m-%d").date())
+                with col2:
+                    e_amount = st.number_input("Amount ($)", min_value=0.01, max_value=float(MAX_AMOUNT),
+                                               step=0.01, format="%.2f", value=float(expense["amount"]))
+                cat_idx = CATEGORIES.index(expense["category"]) if expense["category"] in CATEGORIES else 0
+                e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
+                e_description = st.text_input("Description", value=expense["description"] or "",
+                                              max_chars=MAX_DESCRIPTION_LENGTH)
+                e_writeoff = st.checkbox("🧾 Tax Write-Off", value=bool(expense.get("is_tax_writeoff", 0)))
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    save = st.form_submit_button("Save Changes", use_container_width=True, type="primary")
+                with col_cancel:
+                    cancel = st.form_submit_button("Cancel", use_container_width=True)
+                if save:
+                    valid, msg = validate_expense(e_amount, e_category, e_description.strip(), confirm_duplicate=True)
+                    if not valid:
+                        st.error(msg)
+                    else:
+                        update_expense(editing_id, e_date, e_amount, e_category, e_description.strip(), e_writeoff)
+                        st.cache_data.clear()
+                        st.session_state.pop("editing_expense_id", None)
+                        st.toast("✅ Expense updated!")
+                        st.rerun()
+                if cancel:
+                    st.session_state.pop("editing_expense_id", None)
+                    st.rerun()
+        else:
+            col1, col2 = st.columns(2)
+            with col1:
+                ed_start = st.date_input("From", value=date.today().replace(day=1), key="ed_start")
+            with col2:
+                ed_end = st.date_input("To", value=date.today(), key="ed_end")
+            rows = get_expenses_between(ed_start, ed_end)
+            if not rows:
+                st.info("No expenses in this range.")
+            else:
+                _DISP = {"husband": "Jude", "wife": "Wincyl"}
+                for row in rows:
+                    badge = " 🧾" if row.get("is_tax_writeoff") else ""
+                    who = _DISP.get(row["added_by"], row["added_by"])
+                    col_info, col_edit, col_del = st.columns([5, 1, 1])
+                    with col_info:
+                        st.markdown(
+                            f"**{row['date']}** · ${row['amount']:,.2f} · "
+                            f"{row['category']} · {row['description'] or '—'} "
+                            f"*({who})*{badge}"
+                        )
+                    with col_edit:
+                        if st.button("✏️", key=f"edit_{row['id']}", help="Edit"):
+                            st.session_state["editing_expense_id"] = row["id"]
+                            st.rerun()
+                    with col_del:
+                        if st.button("🗑️", key=f"del_{row['id']}", help="Delete"):
+                            delete_expense(row["id"])
+                            st.cache_data.clear()
+                            st.toast("🗑️ Expense deleted!")
+                            st.rerun()
+
+    # ── LEGACY BLOCK (kept for reference) ──────────────────────────────────
+    return  # Skip old implementation below
     st.header("Manage Expenses")
 
     # --- Edit form (shown when editing) ---
@@ -1983,8 +2156,8 @@ def main():
     # Sidebar navigation
     page = st.sidebar.radio(
         "Navigate",
-        ["🏠 Dashboard", "📰 Feed", "➕ Add Expense", "📅 Monthly View",
-         "📊 Analysis & Reports", "💰 Budgets", "🔍 Search",
+        ["🏠 Dashboard", "📰 Feed", "🗂️ Manage Expenses", "📅 Monthly View",
+         "📊 Analysis & Reports", "💰 Budgets",
          "🔄 Recurring Expense", "📈 Jude's Quantitative"],
     )
 
@@ -1992,16 +2165,14 @@ def main():
         page_dashboard(username)
     elif page == "📰 Feed":
         page_feed(username)
-    elif page == "➕ Add Expense":
-        page_add_expense(username)
+    elif page == "🗂️ Manage Expenses":
+        page_manage_expenses(username)
     elif page == "📅 Monthly View":
         page_monthly_view(username)
     elif page == "📊 Analysis & Reports":
         page_analysis(username)
     elif page == "💰 Budgets":
         page_budgets(username)
-    elif page == "🔍 Search":
-        page_search(username)
     elif page == "🔄 Recurring Expense":
         page_recurring(username)
     elif page == "📈 Jude's Quantitative":
