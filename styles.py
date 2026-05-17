@@ -291,7 +291,7 @@ def card_expense(row: dict, reactions: list[dict], current_user: str) -> str:
       <div style="color:#666;font-size:0.72em">{time_str}</div>
     </div>
   </div>
-  <div style="font-size:1.15em;font-weight:bold;color:#ff6b9d">{cat_emoji} ${amount:,.2f} <span style="color:#888;font-weight:normal;font-size:0.8em">{cat}</span></div>
+  <div style="font-size:1.15em;font-weight:bold;color:#ff6b9d">{cat_emoji} &#36;{amount:,.2f} <span style="color:#888;font-weight:normal;font-size:0.8em">{cat}</span></div>
   {f'<div style="color:#aaa;font-size:0.82em;margin-top:4px">{clean_desc}</div>' if clean_desc else ''}
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">{reaction_html}</div>
 </div>
