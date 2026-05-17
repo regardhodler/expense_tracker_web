@@ -1961,37 +1961,40 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # FAB — CSS targets button by its help/title attribute, no JS needed
-    if st.button("➕ Quick Add Expense", key="fab_trigger", help="__fab__"):
+    # FAB — off-screen Streamlit button clicked by visible floating HTML button
+    if st.button("fab", key="fab_trigger", help="__fab__"):
         st.session_state["show_fab_dialog"] = True
 
     st.markdown("""
 <style>
-button[title="__fab__"] {
-    position: fixed !important;
-    top: 50% !important;
-    right: 0 !important;
-    transform: translateY(-50%) !important;
-    z-index: 9999 !important;
-    background: linear-gradient(135deg, #ff6b9d, #c44dff) !important;
-    border-radius: 28px 0 0 28px !important;
-    padding: 0 20px 0 16px !important;
-    height: 52px !important;
-    font-size: 0.95rem !important;
-    font-weight: bold !important;
-    border: none !important;
-    color: #fff !important;
-    box-shadow: -4px 4px 14px rgba(196,77,255,0.45) !important;
-    white-space: nowrap !important;
-    width: auto !important;
-}
+/* Move trigger button off-screen (still in DOM and JS-clickable) */
 div[data-testid="stButton"]:has(button[title="__fab__"]) {
-    height: 0 !important;
-    overflow: visible !important;
-    margin: 0 !important;
-    padding: 0 !important;
+    position: absolute !important;
+    left: -9999px !important;
+}
+/* Floating pill button */
+.fab-pill {
+    position: fixed;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    z-index: 9999;
+    background: linear-gradient(135deg, #ff6b9d, #c44dff);
+    border-radius: 28px 0 0 28px;
+    padding: 0 20px 0 16px;
+    height: 52px;
+    font-size: 0.95rem;
+    font-weight: bold;
+    border: none;
+    color: #fff;
+    box-shadow: -4px 4px 14px rgba(196,77,255,0.45);
+    white-space: nowrap;
+    cursor: pointer;
 }
 </style>
+<button class="fab-pill" onclick="document.querySelector('button[title=\"__fab__\"]').click()">
+  ➕ Quick Add Expense
+</button>
 """, unsafe_allow_html=True)
 
     if st.session_state.pop("show_fab_dialog", False):
