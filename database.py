@@ -172,6 +172,23 @@ def init_db():
         )
     """)
 
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS reactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expense_id INTEGER NOT NULL,
+            reacted_by TEXT NOT NULL,
+            emoji TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS easter_egg_state (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+
     _sync_write(conn)
 
 
@@ -645,4 +662,67 @@ def delete_jude_income(income_id: int) -> None:
     """Delete a single income entry by id."""
     conn = get_connection()
     conn.execute("DELETE FROM jude_income WHERE id = ?", (income_id,))
+    _sync_write(conn)
+
+
+# ---------------------------------------------------------------------------
+# Reactions CRUD
+# ---------------------------------------------------------------------------
+
+def add_reaction(expense_id: int, reacted_by: str, emoji: str) -> None:
+    """Toggle reaction: add if not present, remove if already reacted with same emoji."""
+    conn = get_connection()
+    existing = conn.execute(
+        "SELECT id FROM reactions WHERE expense_id = ? AND reacted_by = ? AND emoji = ?",
+        (expense_id, reacted_by, emoji),
+    ).fetchone()
+    if existing:
+        conn.execute("DELETE FROM reactions WHERE id = ?", (existing[0],))
+    else:
+        conn.execute(
+            "INSERT INTO reactions (expense_id, reacted_by, emoji, created_at) VALUES (?, ?, ?, ?)",
+            (expense_id, reacted_by, emoji, datetime.utcnow().isoformat()),
+        )
+    _sync_write(conn)
+
+
+def get_reactions(expense_ids: list[int]) -> dict[int, list[dict]]:
+    """Return {expense_id: [{"reacted_by": ..., "emoji": ...}, ...]} for the given ids."""
+    if not expense_ids:
+        return {}
+    conn = get_connection()
+    _sync_read(conn)
+    placeholders = ",".join("?" * len(expense_ids))
+    rows = conn.execute(
+        f"SELECT expense_id, reacted_by, emoji FROM reactions WHERE expense_id IN ({placeholders})",
+        expense_ids,
+    ).fetchall()
+    result: dict = {}
+    for expense_id, reacted_by, emoji in rows:
+        result.setdefault(expense_id, []).append({"reacted_by": reacted_by, "emoji": emoji})
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Easter Egg State CRUD
+# ---------------------------------------------------------------------------
+
+def get_easter_egg(key: str, default: str = "0") -> str:
+    """Read a value from easter_egg_state. Returns default if key not found."""
+    conn = get_connection()
+    _sync_read(conn)
+    row = conn.execute(
+        "SELECT value FROM easter_egg_state WHERE key = ?", (key,)
+    ).fetchone()
+    return row[0] if row else default
+
+
+def set_easter_egg(key: str, value: str) -> None:
+    """Upsert a key in easter_egg_state."""
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO easter_egg_state (key, value, updated_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+        (key, value, datetime.utcnow().isoformat()),
+    )
     _sync_write(conn)
