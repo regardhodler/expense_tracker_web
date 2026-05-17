@@ -1339,6 +1339,19 @@ def page_budgets(username: str):
 
     category_totals = get_monthly_category_totals(today.year, today.month)
 
+    # Compute 3-month rolling average per category (excludes current partial month)
+    _avg_by_cat: dict[str, float] = {}
+    for _m_offset in range(1, 4):
+        _mo = today.month - _m_offset
+        _yr = today.year
+        if _mo <= 0:
+            _mo += 12
+            _yr -= 1
+        _avg_by_cat_month = get_monthly_category_totals(_yr, _mo)
+        for _cat, _amt in _avg_by_cat_month.items():
+            _avg_by_cat[_cat] = _avg_by_cat.get(_cat, 0) + _amt
+    _avg_by_cat = {k: v / 3 for k, v in _avg_by_cat.items()}
+
     for b in budgets:
         cat = b["category"]
         limit_val = b["monthly_limit"]
@@ -1371,8 +1384,21 @@ def page_budgets(username: str):
                 if st.button("🗑️", key=f"del_budget_{cat}", help=f"Delete {cat} budget"):
                     st.session_state[confirm_key] = True
                     st.rerun()
+        avg = _avg_by_cat.get(cat, 0)
+        avg_vs_budget = ""
+        if avg > 0 and limit_val > 0:
+            diff = avg - limit_val
+            if diff > 0:
+                avg_vs_budget = f" · <span style='color:#e74c3c'>avg is ${diff:,.0f} over budget</span>"
+            else:
+                avg_vs_budget = f" · <span style='color:#2ecc71'>avg is ${-diff:,.0f} under budget</span>"
+        ref_parts = [f"3-mo avg: <strong>${avg:,.2f}</strong>{avg_vs_budget}"]
         if b.get("notes"):
-            st.caption(f"💬 {b['notes']}")
+            ref_parts.append(f"💬 {b['notes']}")
+        st.markdown(
+            f'<span style="color:#888;font-size:0.78em">{" &nbsp;|&nbsp; ".join(ref_parts)}</span>',
+            unsafe_allow_html=True,
+        )
 
 
 def page_recurring(username: str):
