@@ -308,7 +308,6 @@ def card_profile(user: str, stats: dict) -> str:
 <div class="profile-card">
   <div class="avatar" style="margin:0 auto 8px">{initial}</div>
   <div style="font-weight:bold;color:#e0e0e0">{name}</div>
-  <div style="font-size:1.3em;font-weight:bold;color:#ff6b9d;margin:4px 0">${total:,.2f}</div>
   <div style="color:#888;font-size:0.75em">{tier_emoji} {tier_label}</div>
   {f'<div style="color:#666;font-size:0.72em;margin-top:4px">🔥 {streak} day streak</div>' if streak > 0 else ''}
   {f'<div style="color:#666;font-size:0.72em">{top_cat}</div>' if top_cat else ''}
