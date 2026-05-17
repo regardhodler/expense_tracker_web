@@ -1961,61 +1961,23 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # FAB — off-screen Streamlit button; floating HTML button clicks it by text match
-    if st.button("XFABOPENX", key="fab_trigger"):
+    # FAB — anchor with target="_self" stays in same tab; query param triggers dialog
+    st.markdown(
+        '<a href="?fab=1" target="_self" style="'
+        'position:fixed;top:50%;right:0;transform:translateY(-50%);'
+        'display:flex;align-items:center;'
+        'background:linear-gradient(135deg,#ff6b9d,#c44dff);'
+        'border-radius:28px 0 0 28px;padding:0 20px 0 16px;height:52px;'
+        'font-size:0.95rem;font-weight:bold;color:#fff;text-decoration:none;'
+        'box-shadow:-4px 4px 14px rgba(196,77,255,0.45);white-space:nowrap;z-index:9999;'
+        '">➕ Quick Add Expense</a>',
+        unsafe_allow_html=True,
+    )
+
+    if st.query_params.get("fab") == "1":
+        del st.query_params["fab"]
         st.session_state["show_fab_dialog"] = True
-
-    st.markdown("""
-<style>
-div[data-testid="stButton"]:has(button p) {
-    /* hide all stButtons whose inner p contains __fab_open__ via JS below */
-}
-.fab-offscreen {
-    position: absolute !important;
-    left: -9999px !important;
-    top: -9999px !important;
-}
-.fab-pill {
-    position: fixed;
-    top: 50%;
-    right: 0;
-    transform: translateY(-50%);
-    z-index: 9999;
-    background: linear-gradient(135deg, #ff6b9d, #c44dff);
-    border-radius: 28px 0 0 28px;
-    padding: 0 20px 0 16px;
-    height: 52px;
-    font-size: 0.95rem;
-    font-weight: bold;
-    border: none;
-    color: #fff;
-    box-shadow: -4px 4px 14px rgba(196,77,255,0.45);
-    white-space: nowrap;
-    cursor: pointer;
-}
-</style>
-<script>
-(function(){
-  function setup(){
-    var btns = document.querySelectorAll('button');
-    for(var i=0;i<btns.length;i++){
-      if((btns[i].textContent||'').trim()==='XFABOPENX'){
-        var w=btns[i];
-        while(w&&w.getAttribute('data-testid')!=='stButton') w=w.parentElement;
-        if(w) w.classList.add('fab-offscreen');
-        return;
-      }
-    }
-    setTimeout(setup,100);
-  }
-  setup();
-})();
-</script>
-<button class="fab-pill" onclick='(function(){var btns=document.querySelectorAll("button");for(var i=0;i<btns.length;i++){if((btns[i].textContent||"").trim()==="XFABOPENX"){btns[i].click();return;}}})()'>
-  ➕ Quick Add Expense
-</button>
-""", unsafe_allow_html=True)
-
+        st.rerun()
     if st.session_state.pop("show_fab_dialog", False):
         quick_add_dialog(username)
 
