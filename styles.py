@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import random
 from datetime import date as _date
 
@@ -229,19 +230,20 @@ def card_expense(row: dict, reactions: list[dict], current_user: str) -> str:
     _DISPLAY = {"husband": "Jude", "wife": "Wincyl"}
     added_by = row.get("added_by", "")
     initial = "J" if added_by == "husband" else "W"
-    display_name = _DISPLAY.get(added_by, added_by)
+    display_name = html.escape(_DISPLAY.get(added_by, added_by))
     desc = row.get("description", "") or ""
     is_recurring = desc.startswith("[Recurring]")
     badge = '<span style="font-size:0.7em;background:#2a2a4a;padding:2px 6px;border-radius:8px">🔄 Recurring</span>' if is_recurring else ""
     clean_desc = desc.replace("[Recurring] ", "") if is_recurring else desc
+    clean_desc = html.escape(clean_desc)
 
     CATEGORY_EMOJI = {
         "Housing": "🏠", "Food": "🍔", "Health": "💊",
         "Transportation": "🚗", "Personal": "💅",
         "Entertainment": "🎬", "Others": "📦",
     }
-    cat = row.get("category", "Others")
-    cat_emoji = CATEGORY_EMOJI.get(cat, "📦")
+    cat = html.escape(row.get("category", "Others"))
+    cat_emoji = CATEGORY_EMOJI.get(row.get("category", "Others"), "📦")
 
     raw_date = str(row.get("date", ""))[:10]
     try:
