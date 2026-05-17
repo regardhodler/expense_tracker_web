@@ -2113,6 +2113,95 @@ def page_jueds_quantitative(username: str) -> None:
         hide_index=True,
     )
 
+    st.divider()
+
+    # ── DRILL-DOWN: pick a month ────────────────────────────────────────────
+    st.subheader("🔍 Month Deep Dive")
+    drill_month_name = st.selectbox(
+        "Select a month to analyse",
+        [calendar.month_name[m] for m in range(1, 13)],
+        index=date.today().month - 1,
+        key="drill_month",
+    )
+    drill_m = list(calendar.month_name).index(drill_month_name)
+    drill_row = next((r for r in monthly_rows if r["month_num"] == drill_m), None)
+
+    if drill_row:
+        m_start = date(selected_year, drill_m, 1)
+        m_end = date(selected_year, drill_m, calendar.monthrange(selected_year, drill_m)[1])
+        drill_expenses = [
+            r for r in get_expenses_between(m_start, m_end)
+            if r.get("added_by") == "husband"
+        ]
+
+        fcf = drill_row["free_cash_flow"]
+        net_inc = drill_row["net_income"]
+        total_exp = drill_row["recurring_expense"] + drill_row["manual_expense"]
+
+        # ── Burn rate cards ─────────────────────────────────────────────────
+        st.markdown("#### 🔥 Burn Rate")
+        if net_inc > 0:
+            pct_spent = min(total_exp / net_inc * 100, 999)
+            breakeven = total_exp  # need this much income to break even
+            surplus_needed = max(0, total_exp - net_inc)
+            bc1, bc2, bc3, bc4 = st.columns(4)
+            bc1.metric("Income", f"${net_inc:,.2f}")
+            bc2.metric("Total Spent", f"${total_exp:,.2f}")
+            bc3.metric("% of Income Spent", f"{pct_spent:.0f}%",
+                       delta=f"{pct_spent - 100:.0f}% over" if pct_spent > 100 else f"{100 - pct_spent:.0f}% left",
+                       delta_color="inverse")
+            bc4.metric("Need to Break Even" if surplus_needed > 0 else "Surplus",
+                       f"${surplus_needed:,.2f}" if surplus_needed > 0 else f"${-fcf:,.2f}",
+                       delta="Earn more" if surplus_needed > 0 else None,
+                       delta_color="inverse")
+            if pct_spent > 100:
+                over = total_exp - net_inc
+                rec_pct = drill_row["recurring_expense"] / total_exp * 100 if total_exp else 0
+                disc_pct = drill_row["manual_expense"] / total_exp * 100 if total_exp else 0
+                st.error(
+                    f"You spent **${over:,.2f} more than you earned** in {drill_month_name}. "
+                    f"**{rec_pct:.0f}%** of spending was recurring (fixed costs), "
+                    f"**{disc_pct:.0f}%** was discretionary."
+                )
+        else:
+            st.info(f"No income logged for {drill_month_name} {selected_year}.")
+
+        # ── Category breakdown ───────────────────────────────────────────────
+        if drill_expenses:
+            st.markdown("#### 📊 Spending by Category")
+            cat_totals: dict[str, float] = {}
+            for r in drill_expenses:
+                cat_totals[r["category"]] = cat_totals.get(r["category"], 0) + r["amount"]
+            cat_sorted = sorted(cat_totals.items(), key=lambda x: x[1], reverse=True)
+
+            CAT_EMOJI = {"Housing":"🏠","Food":"🍔","Health":"💊",
+                         "Transportation":"🚗","Personal":"💅","Entertainment":"🎬","Others":"📦"}
+            for cat, amt in cat_sorted:
+                pct = amt / total_exp * 100 if total_exp else 0
+                emoji = CAT_EMOJI.get(cat, "📦")
+                col_cat, col_amt, col_bar = st.columns([2, 1, 3])
+                with col_cat:
+                    st.write(f"{emoji} {cat}")
+                with col_amt:
+                    st.write(f"${amt:,.2f} ({pct:.0f}%)")
+                with col_bar:
+                    st.progress(min(pct / 100, 1.0))
+
+            # ── Top 5 biggest expenses ───────────────────────────────────────
+            st.markdown("#### 💸 Top 5 Biggest Expenses")
+            top5 = sorted(drill_expenses, key=lambda r: r["amount"], reverse=True)[:5]
+            for i, r in enumerate(top5, 1):
+                desc = r.get("description") or "—"
+                if desc.startswith("[Recurring]"):
+                    desc = "🔄 " + desc.replace("[Recurring] ", "")
+                st.markdown(
+                    f"**{i}.** ${r['amount']:,.2f} · {r['category']} · {desc} "
+                    f"<span style='color:#888;font-size:0.85em'>({r['date']})</span>",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info(f"No expenses found for Jude in {drill_month_name} {selected_year}.")
+
 
 # Main
 # ---------------------------------------------------------------------------
