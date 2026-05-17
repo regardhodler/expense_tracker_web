@@ -12,6 +12,7 @@ from database import (
     init_db, add_expense, delete_expense, get_expenses_between, get_recent_expenses,
     get_expense_by_id, update_expense, get_tax_writeoffs,
     get_budgets, set_budget, delete_budget, get_monthly_category_totals,
+    get_easter_egg, set_easter_egg,
     add_recurring_expense, get_recurring_expenses, deactivate_recurring_expense,
     update_recurring_expense, process_recurring_expenses,
     get_savings_goals, add_savings_goal, update_savings_goal_progress,
@@ -290,6 +291,39 @@ def page_dashboard(username: str):
 
     # --- Partner Profile Mini-Cards ---
     all_rows_dash = _cached_all_expenses()
+
+    # Easter egg: App anniversary
+    if all_rows_dash:
+        _first_date_str = min(str(r.get("date",""))[:10] for r in all_rows_dash)
+        try:
+            _first_date = date.fromisoformat(_first_date_str)
+            _today_d = date.today()
+            if _first_date.month == _today_d.month and _first_date.day == _today_d.day and _first_date.year < _today_d.year:
+                _years = _today_d.year - _first_date.year
+                _anniv_key = f"anniv_{_today_d.year}"
+                if get_easter_egg(_anniv_key, "0") == "0":
+                    set_easter_egg(_anniv_key, "1")
+                    st.markdown(styles.confetti_burst(), unsafe_allow_html=True)
+                    st.balloons()
+                    st.success(f"🎂 {_years} year{'s' if _years > 1 else ''} of tracking love together! Happy FamilyLedger Anniversary! 💕")
+        except Exception:
+            pass
+
+    # Easter egg: Sync'd — both partners logged today
+    _today_str = str(date.today())
+    _jude_today = any(
+        str(r.get("date",""))[:10] == _today_str and r.get("added_by") == "husband"
+        for r in all_rows_dash
+    )
+    _wincyl_today = any(
+        str(r.get("date",""))[:10] == _today_str and r.get("added_by") == "wife"
+        for r in all_rows_dash
+    )
+    _last_sync = get_easter_egg("last_sync_date", "")
+    if _jude_today and _wincyl_today and _last_sync != _today_str:
+        set_easter_egg("last_sync_date", _today_str)
+        st.markdown(styles.sync_banner(), unsafe_allow_html=True)
+
     from datetime import date as _dt
     _this_month = _dt.today().replace(day=1)
     month_rows_all = [
@@ -416,6 +450,21 @@ def page_dashboard(username: str):
 
     # --- Streak badge + Forecast ---
     all_rows_for_streaks = _cached_all_expenses()
+
+    # Easter egg: Silent Saver — any completed month under $50 total
+    if get_easter_egg("silent_saver_unlocked", "0") == "0":
+        from collections import defaultdict as _dd
+        _month_totals: dict = _dd(float)
+        for _r in all_rows_for_streaks:
+            _ym = str(_r.get("date",""))[:7]
+            _month_totals[_ym] += _r.get("amount", 0)
+        _today_ym = date.today().strftime("%Y-%m")
+        _silent_months = [m for m, t in _month_totals.items() if t < 50 and m < _today_ym]
+        if _silent_months:
+            set_easter_egg("silent_saver_unlocked", "1")
+            st.markdown(styles.confetti_burst(), unsafe_allow_html=True)
+            st.info("🤫 **The Silent Saver** — A mystery badge has been unlocked. Some secrets reveal themselves to those who spend wisely.")
+
     streaks = get_streaks(all_rows_for_streaks)
     cur_streak = streaks["current_streak"]
     if cur_streak > 0:
@@ -470,6 +519,19 @@ def page_dashboard(username: str):
 
     # --- Achievements ---
     achievements = get_achievements(all_rows_for_streaks)
+    import json as _json
+    _seen_raw = get_easter_egg("seen_achievements", "[]")
+    try:
+        _seen = set(_json.loads(_seen_raw))
+    except Exception:
+        _seen = set()
+    _now_unlocked = {a["name"] for a in achievements if a.get("unlocked")}
+    _newly_unlocked = _now_unlocked - _seen
+    if _newly_unlocked:
+        set_easter_egg("seen_achievements", _json.dumps(list(_now_unlocked)))
+        st.markdown(styles.confetti_burst(), unsafe_allow_html=True)
+        for name in _newly_unlocked:
+            st.toast(f"🏆 Achievement unlocked: {name}!", icon="🎊")
     with st.expander("🏆 Achievements"):
         unlocked = [a for a in achievements if a["unlocked"]]
         locked = [a for a in achievements if not a["unlocked"]]
@@ -704,6 +766,27 @@ def page_dashboard(username: str):
     else:
         st.info("No expenses yet. Add your first one!")
 
+    # Hidden couple stats panel (revealed by 5 logo taps via JS in app_header)
+    if all_rows_dash:
+        _all_df = rows_to_dataframe(all_rows_dash)
+        if not _all_df.empty:
+            _max_day = _all_df.groupby(_all_df["date"].dt.date)["amount"].sum().idxmax()
+            _max_day_total = _all_df.groupby(_all_df["date"].dt.date)["amount"].sum().max()
+            _total_logged = len(all_rows_dash)
+            _top_cat = _all_df.groupby("category")["amount"].sum().idxmax()
+            _max_expense = _all_df["amount"].max()
+            st.markdown(f"""
+<div id="couple-stats-panel" style="display:none;background:#1a1a2e;border:2px solid #c44dff;
+border-radius:14px;padding:20px;margin:12px 0">
+  <div style="color:#c44dff;font-weight:bold;margin-bottom:12px">🔮 Secret Couple Stats</div>
+  <div style="color:#e0e0e0;font-size:0.85em;line-height:2">
+    💸 Most expensive day: <strong>{_max_day}</strong> (${_max_day_total:,.2f})<br>
+    💕 Total expenses logged together: <strong>{_total_logged}</strong><br>
+    📦 Most used category: <strong>{_top_cat}</strong><br>
+    💎 Highest single expense: <strong>${_max_expense:,.2f}</strong>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 
 @st.dialog("➕ Quick Add")
@@ -722,6 +805,10 @@ def quick_add_dialog(username: str):
             add_expense(exp_date, float(amount), category, description, username, False)
             st.cache_data.clear()
             st.success("Added! 🎉")
+            import random as _random
+            if _random.random() < 0.05:
+                fortune = _random.choice(styles.FORTUNE_MESSAGES)
+                st.markdown(styles.easter_egg_fortune(fortune), unsafe_allow_html=True)
             st.rerun()
 
 
@@ -772,6 +859,10 @@ def page_add_expense(username: str):
                 added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
                 add_expense(exp_date, amount, category, description.strip(), added_by, is_writeoff)
                 st.success(f"Added ${amount:,.2f} for {category} on {exp_date}!")
+                import random as _random
+                if _random.random() < 0.05:
+                    fortune = _random.choice(styles.FORTUNE_MESSAGES)
+                    st.markdown(styles.easter_egg_fortune(fortune), unsafe_allow_html=True)
                 st.session_state.pop("_confirm_duplicate", None)
                 st.session_state["_date_night_pending"] = (exp_date, amount)
 
