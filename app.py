@@ -1992,7 +1992,7 @@ div[data-testid="stButton"]:has(button[title="__fab__"]) {
     cursor: pointer;
 }
 </style>
-<button class="fab-pill" onclick="document.querySelector('button[title=\"__fab__\"]').click()">
+<button class="fab-pill" onclick='document.querySelector("[title=__fab__]").click()'>
   ➕ Quick Add Expense
 </button>
 """, unsafe_allow_html=True)
