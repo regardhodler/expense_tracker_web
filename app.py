@@ -258,13 +258,13 @@ def page_dashboard(username: str):
     st.markdown("""
 <style>
 div[data-testid="stButton"] > button[kind="primary"] {
-    background: linear-gradient(135deg, #ff6b9d, #c44dff) !important;
+    background: linear-gradient(135deg, #7a3550, #5a2d72) !important;
     border: none !important;
-    color: #fff !important;
+    color: #e0c8d8 !important;
     font-weight: bold !important;
 }
 div[data-testid="stButton"] > button[kind="primary"]:hover {
-    background: linear-gradient(135deg, #ff8fb3, #d966ff) !important;
+    background: linear-gradient(135deg, #8f3d5e, #6b3585) !important;
     border: none !important;
 }
 </style>
