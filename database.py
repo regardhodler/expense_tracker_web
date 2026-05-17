@@ -185,6 +185,18 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_reactions_expense_id ON reactions(expense_id)"
     )
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS expense_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expense_id INTEGER NOT NULL,
+            added_by TEXT NOT NULL,
+            note TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_expense_notes_expense_id ON expense_notes(expense_id)"
+    )
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS easter_egg_state (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL,
@@ -741,6 +753,45 @@ def get_reactions(expense_ids: list[int]) -> dict[int, list[dict]]:
     result: dict = {}
     for expense_id, reacted_by, emoji in rows:
         result.setdefault(expense_id, []).append({"reacted_by": reacted_by, "emoji": emoji})
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Expense Notes CRUD
+# ---------------------------------------------------------------------------
+
+def add_expense_note(expense_id: int, added_by: str, note: str) -> None:
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO expense_notes (expense_id, added_by, note) VALUES (?, ?, ?)",
+        (expense_id, added_by, note.strip()),
+    )
+    _sync_write(conn)
+
+
+def delete_expense_note(note_id: int) -> None:
+    conn = get_connection()
+    conn.execute("DELETE FROM expense_notes WHERE id = ?", (note_id,))
+    _sync_write(conn)
+
+
+def get_notes_for_expenses(expense_ids: list[int]) -> dict[int, list[dict]]:
+    """Return {expense_id: [{"id": ..., "added_by": ..., "note": ..., "created_at": ...}]}."""
+    if not expense_ids:
+        return {}
+    conn = get_connection()
+    _sync_read(conn)
+    placeholders = ",".join("?" * len(expense_ids))
+    rows = conn.execute(
+        f"SELECT id, expense_id, added_by, note, created_at FROM expense_notes "
+        f"WHERE expense_id IN ({placeholders}) ORDER BY created_at ASC",
+        tuple(expense_ids),
+    ).fetchall()
+    result: dict = {}
+    for note_id, expense_id, added_by, note, created_at in rows:
+        result.setdefault(expense_id, []).append({
+            "id": note_id, "added_by": added_by, "note": note, "created_at": created_at,
+        })
     return result
 
 

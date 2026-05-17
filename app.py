@@ -15,6 +15,7 @@ from database import (
     get_easter_egg, set_easter_egg,
     add_recurring_expense, get_recurring_expenses, deactivate_recurring_expense,
     update_recurring_expense, process_recurring_expenses, get_upcoming_recurring,
+    add_expense_note, delete_expense_note, get_notes_for_expenses,
     get_savings_goals, add_savings_goal, update_savings_goal_progress,
     complete_savings_goal, delete_savings_goal,
     add_date_night, get_date_nights, get_date_night_dates, delete_date_night,
@@ -1990,6 +1991,9 @@ def page_feed(username: str):
 
     expense_ids = [r["id"] for r in page_rows if "id" in r]
     reactions_map = get_reactions(expense_ids)
+    notes_map = get_notes_for_expenses(expense_ids)
+
+    _DISPLAY = {"husband": "Jude", "wife": "Wincyl"}
 
     from datetime import date as _date
     today_str = str(_date.today())
@@ -2016,6 +2020,50 @@ def page_feed(username: str):
                 styles.card_expense(row, row_reactions, username),
                 unsafe_allow_html=True,
             )
+
+            # Notes section
+            expense_notes = notes_map.get(expense_id, [])
+            for n in expense_notes:
+                author = _DISPLAY.get(n["added_by"], n["added_by"])
+                nc1, nc2 = st.columns([10, 1])
+                with nc1:
+                    st.markdown(
+                        f'<div style="background:#12122a;border-left:3px solid #c44dff;'
+                        f'border-radius:0 8px 8px 0;padding:6px 10px;margin:2px 0;font-size:0.85em">'
+                        f'<span style="color:#c44dff;font-size:0.75em">{author}</span> '
+                        f'<span style="color:#ddd">{n["note"]}</span></div>',
+                        unsafe_allow_html=True,
+                    )
+                with nc2:
+                    if n["added_by"] == username:
+                        if st.button("✕", key=f"del_note_{n['id']}", help="Delete note"):
+                            delete_expense_note(n["id"])
+                            st.cache_data.clear()
+                            st.rerun()
+
+            note_key = f"note_input_{expense_id}"
+            note_open_key = f"note_open_{expense_id}"
+            if st.session_state.get(note_open_key):
+                with st.form(key=f"note_form_{expense_id}", clear_on_submit=True):
+                    note_text = st.text_input("Add a note", placeholder="Type a note…", label_visibility="collapsed")
+                    nc_save, nc_cancel = st.columns(2)
+                    with nc_save:
+                        submitted = st.form_submit_button("Save", use_container_width=True)
+                    with nc_cancel:
+                        cancelled = st.form_submit_button("Cancel", use_container_width=True)
+                    if submitted and note_text.strip():
+                        add_expense_note(expense_id, username, note_text.strip())
+                        st.session_state.pop(note_open_key, None)
+                        st.cache_data.clear()
+                        st.rerun()
+                    if cancelled:
+                        st.session_state.pop(note_open_key, None)
+                        st.rerun()
+            else:
+                if st.button("📝 Add note", key=f"note_btn_{expense_id}"):
+                    st.session_state[note_open_key] = True
+                    st.rerun()
+
             react_cols = st.columns(len(styles.REACTION_EMOJIS))
             for j, emoji in enumerate(styles.REACTION_EMOJIS):
                 with react_cols[j]:
