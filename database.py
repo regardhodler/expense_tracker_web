@@ -181,6 +181,9 @@ def init_db():
             created_at TEXT NOT NULL
         )
     """)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_reactions_expense_id ON reactions(expense_id)"
+    )
     conn.execute("""
         CREATE TABLE IF NOT EXISTS easter_egg_state (
             key TEXT PRIMARY KEY,
