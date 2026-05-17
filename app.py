@@ -14,7 +14,7 @@ from database import (
     get_budgets, set_budget, delete_budget, get_monthly_category_totals,
     get_easter_egg, set_easter_egg,
     add_recurring_expense, get_recurring_expenses, deactivate_recurring_expense,
-    update_recurring_expense, process_recurring_expenses,
+    update_recurring_expense, process_recurring_expenses, get_upcoming_recurring,
     get_savings_goals, add_savings_goal, update_savings_goal_progress,
     complete_savings_goal, delete_savings_goal,
     add_date_night, get_date_nights, get_date_night_dates, delete_date_night,
@@ -769,6 +769,33 @@ min-width:140px;flex:1">
                     f"(${over:,.2f} over)"
                 )
 
+    # Upcoming recurring expenses (next 30 days)
+    upcoming = get_upcoming_recurring(30)
+    if upcoming:
+        st.subheader("🔄 Upcoming Recurring Expenses")
+        CAT_EMOJI = {"Housing":"🏠","Food":"🍔","Health":"💊","Transportation":"🚗",
+                     "Personal":"💅","Entertainment":"🎬","Others":"📦"}
+        today = date.today()
+        for r in upcoming:
+            exp_date = date.fromisoformat(str(r["date"])[:10])
+            days_away = (exp_date - today).days
+            due_str = f"in {days_away}d" if days_away > 1 else "tomorrow"
+            clean_desc = str(r.get("description", "")).replace("[Recurring] ", "")
+            cat_emoji = CAT_EMOJI.get(r["category"], "📦")
+            added = "Jude" if r.get("added_by") == "husband" else "Wincyl"
+            st.markdown(
+                f'<div style="background:#1a1a2e;border-radius:10px;padding:10px 14px;'
+                f'margin-bottom:6px;border-left:3px solid #c44dff;'
+                f'display:flex;justify-content:space-between;align-items:center">'
+                f'<span>{cat_emoji} <strong>{clean_desc}</strong> '
+                f'<span style="color:#888;font-size:0.82em">· {added}</span></span>'
+                f'<span style="color:#ff6b9d;font-weight:bold">&#36;{r["amount"]:,.2f} '
+                f'<span style="color:#888;font-size:0.8em">· {exp_date.strftime("%b %d")} ({due_str})</span></span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        st.markdown("")
+
     # Recent expenses
     st.subheader("Recent Expenses")
     recent = _cached_recent_expenses(10)
@@ -1314,7 +1341,7 @@ def page_recurring(username: str):
         edit_rec = next((r for r in recurring_all if r["id"] == editing_id), None)
         if edit_rec:
             st.subheader(f"Edit: {edit_rec['name']}")
-            freq_options = ["monthly", "weekly", "biweekly"]
+            freq_options = ["monthly", "weekly", "biweekly", "yearly"]
             if "edit_freq" not in st.session_state:
                 st.session_state["edit_freq"] = edit_rec["frequency"] if edit_rec["frequency"] in freq_options else "monthly"
             e_frequency = st.selectbox("Frequency", freq_options, key="edit_freq")
@@ -1339,6 +1366,15 @@ def page_recurring(username: str):
                     e_day_of_month = st.number_input("Day of Month", min_value=1, max_value=31,
                                                      value=edit_rec["day_of_month"] or 1)
                     e_start_date = None
+                elif e_frequency == "yearly":
+                    existing_start = None
+                    if edit_rec.get("start_date"):
+                        from datetime import datetime as _dt
+                        existing_start = _dt.strptime(edit_rec["start_date"], "%Y-%m-%d").date()
+                    e_start_date_input = st.date_input("Annual Date (month & day)",
+                                                       value=existing_start or date.today())
+                    e_start_date = e_start_date_input.isoformat()
+                    e_day_of_month = e_start_date_input.day
                 else:
                     existing_start = None
                     if edit_rec.get("start_date"):
@@ -1377,7 +1413,7 @@ def page_recurring(username: str):
 
     # --- Add recurring ---
     st.subheader("Add Recurring Expense")
-    frequency = st.selectbox("Frequency", ["monthly", "weekly", "biweekly"], key="add_freq")
+    frequency = st.selectbox("Frequency", ["monthly", "weekly", "biweekly", "yearly"], key="add_freq")
     with st.form("recurring_form", clear_on_submit=True):
         name = st.text_input("Name (e.g. Rent, Netflix)", max_chars=100)
         col1, col2 = st.columns(2)
@@ -1391,6 +1427,10 @@ def page_recurring(username: str):
         if frequency == "monthly":
             day_of_month = st.number_input("Day of Month", min_value=1, max_value=31, value=min(date.today().day, 28))
             start_date = None
+        elif frequency == "yearly":
+            start_date_input = st.date_input("Annual Date (month & day)", value=date.today())
+            start_date = start_date_input.isoformat()
+            day_of_month = start_date_input.day
         else:
             start_date_input = st.date_input("Start Date", value=date.today())
             start_date = start_date_input.isoformat()

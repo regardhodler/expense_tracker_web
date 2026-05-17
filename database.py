@@ -268,6 +268,23 @@ def get_recent_expenses(limit: int = 10) -> list[dict]:
     return _rows_to_dicts(rows)
 
 
+def get_upcoming_recurring(days_ahead: int = 30) -> list[dict]:
+    """Return recurring expenses scheduled between tomorrow and days_ahead from today."""
+    conn = get_connection()
+    _sync_read(conn)
+    today = date.today()
+    from datetime import timedelta
+    future = (today + timedelta(days=days_ahead)).isoformat()
+    tomorrow = (today + timedelta(days=1)).isoformat()
+    rows = conn.execute(
+        "SELECT id, date, amount, category, description, added_by "
+        "FROM expenses WHERE date >= ? AND date <= ? AND description LIKE '[Recurring]%' "
+        "ORDER BY date ASC",
+        (tomorrow, future),
+    ).fetchall()
+    return _rows_to_dicts(rows)
+
+
 def get_tax_writeoffs(start_date: date, end_date: date) -> list[dict]:
     """Return all tax write-off expenses in a date range."""
     conn = get_connection()
@@ -488,6 +505,26 @@ def process_recurring_expenses():
                 if check_month > 12:
                     check_month = 1
                     check_year += 1
+
+        elif rec["frequency"] == "yearly":
+            # day_of_month stores the day; start_date stores the anchor month/year
+            if rec.get("start_date"):
+                anchor = datetime.strptime(rec["start_date"], "%Y-%m-%d").date()
+                anchor_month = anchor.month
+                anchor_day = min(anchor.day, _cal.monthrange(anchor.year, anchor.month)[1])
+            else:
+                anchor_month = rec["day_of_month"] or 1
+                anchor_day = 1
+            # Check this year and next year within forward_limit
+            for yr in (today.year, today.year + 1):
+                actual_day = min(anchor_day, _cal.monthrange(yr, anchor_month)[1])
+                expense_date = date(yr, anchor_month, actual_day)
+                if expense_date <= forward_limit:
+                    if not (last_dt and last_dt >= expense_date):
+                        if not _recurring_entry_exists(expense_date, desc, rec["added_by"]):
+                            inserts.append((expense_date.isoformat(), rec["amount"],
+                                            rec["category"], desc, rec["added_by"]))
+                        last_added_updates[rec["id"]] = expense_date.isoformat()
 
         elif rec["frequency"] in ("weekly", "biweekly"):
             step = 7 if rec["frequency"] == "weekly" else 14
