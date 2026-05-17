@@ -1961,14 +1961,9 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # FAB — pushState updates URL without reload; Streamlit's React Router detects it
+    # FAB — same-window link, open dialog directly in same rerun (no extra rerun)
     st.markdown(
-        '<a href="#" onclick="'
-        "event.preventDefault();"
-        "var u=new URL(window.location.href);u.searchParams.set('fab','1');"
-        "history.pushState(null,'',u.toString());"
-        "window.dispatchEvent(new PopStateEvent('popstate',{state:null}));"
-        '" style="'
+        '<a href="?fab=1" target="_self" style="'
         'position:fixed;top:50%;right:0;transform:translateY(-50%);'
         'display:flex;align-items:center;'
         'background:linear-gradient(135deg,#ff6b9d,#c44dff);'
@@ -1981,9 +1976,6 @@ def main():
 
     if st.query_params.get("fab") == "1":
         del st.query_params["fab"]
-        st.session_state["show_fab_dialog"] = True
-        st.rerun()
-    if st.session_state.pop("show_fab_dialog", False):
         quick_add_dialog(username)
 
     # Sidebar navigation
