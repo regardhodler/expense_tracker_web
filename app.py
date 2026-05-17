@@ -288,6 +288,38 @@ def page_dashboard(username: str):
 
     month_delta = month_total - prev_month_total if prev_month_total > 0 else None
 
+    # --- Partner Profile Mini-Cards ---
+    all_rows_dash = _cached_all_expenses()
+    from datetime import date as _dt
+    _this_month = _dt.today().replace(day=1)
+    month_rows_all = [
+        r for r in all_rows_dash
+        if str(r.get("date", ""))[:7] == _this_month.strftime("%Y-%m")
+    ]
+    streaks_dash = get_streaks(all_rows_dash)
+
+    def _profile_stats(user: str) -> dict:
+        user_rows = [r for r in month_rows_all if r.get("added_by") == user]
+        total = sum(r.get("amount", 0) for r in user_rows)
+        streak_key = "jude_streak" if user == "husband" else "wincyl_streak"
+        streak = streaks_dash.get(streak_key, 0)
+        lp = love_points(rows_to_dataframe(user_rows))
+        cat_totals: dict = {}
+        for r in user_rows:
+            cat_totals[r["category"]] = cat_totals.get(r["category"], 0) + r.get("amount", 0)
+        top_cat = max(cat_totals, key=cat_totals.get) if cat_totals else ""
+        CAT_EMOJI = {"Housing":"🏠","Food":"🍔","Health":"💊","Transportation":"🚗","Personal":"💅","Entertainment":"🎬","Others":"📦"}
+        top_cat_str = f"{CAT_EMOJI.get(top_cat, '')} {top_cat} fan" if top_cat else ""
+        return {"total": total, "streak": streak, "tier_emoji": lp.get("emoji", "❄️"), "tier_label": lp.get("label", "Warming Up"), "top_category": top_cat_str}
+
+    pc1, pc2 = st.columns(2)
+    with pc1:
+        st.markdown(styles.card_profile("husband", _profile_stats("husband")), unsafe_allow_html=True)
+    with pc2:
+        st.markdown(styles.card_profile("wife", _profile_stats("wife")), unsafe_allow_html=True)
+
+    st.divider()
+
     col1, col2 = st.columns(2)
     col1.metric("This Month", f"${month_total:,.2f}",
                 delta=f"${month_delta:,.2f}" if month_delta is not None else None,
