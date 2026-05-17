@@ -1961,9 +1961,14 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # FAB — anchor with target="_self" stays in same tab; query param triggers dialog
+    # FAB — pushState updates URL without reload; Streamlit's React Router detects it
     st.markdown(
-        '<a href="?fab=1" target="_self" style="'
+        '<a href="#" onclick="'
+        "event.preventDefault();"
+        "var u=new URL(window.location.href);u.searchParams.set('fab','1');"
+        "history.pushState(null,'',u.toString());"
+        "window.dispatchEvent(new PopStateEvent('popstate',{state:null}));"
+        '" style="'
         'position:fixed;top:50%;right:0;transform:translateY(-50%);'
         'display:flex;align-items:center;'
         'background:linear-gradient(135deg,#ff6b9d,#c44dff);'
