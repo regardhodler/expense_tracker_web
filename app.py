@@ -787,17 +787,24 @@ border-radius:14px;padding:20px;margin:12px 0">
 @st.dialog("➕ Quick Add")
 def quick_add_dialog(username: str):
     """Quick expense entry from FAB."""
+    from analysis import DISPLAY_NAMES
     amount = st.number_input("Amount ($)", min_value=0.01, max_value=float(MAX_AMOUNT), step=1.0, format="%.2f")
     category = st.selectbox("Category", CATEGORIES)
     description = st.text_input("Description (optional)", max_chars=MAX_DESCRIPTION_LENGTH)
     exp_date = st.date_input("Date", value=date.today())
+    person_options = ["Jude", "Wincyl"]
+    default_for = DISPLAY_NAMES.get(username, "Jude")
+    added_for = st.selectbox("Who is this for?", person_options,
+                             index=person_options.index(default_for) if default_for in person_options else 0)
+    is_writeoff = st.checkbox("🧾 Tax Write-Off", value=False)
 
     if st.button("Add Expense 💕", use_container_width=True, type="primary"):
         valid, msg = validate_expense(amount, category, description)
         if not valid:
             st.error(msg)
         else:
-            add_expense(exp_date, float(amount), category, description, username, False)
+            added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
+            add_expense(exp_date, float(amount), category, description, added_by, is_writeoff)
             st.cache_data.clear()
             st.success("Added! 🎉")
             import random as _random
@@ -1980,7 +1987,7 @@ def main():
         "Navigate",
         ["🏠 Dashboard", "📰 Feed", "➕ Add Expense", "📅 Monthly View",
          "📊 Analysis & Reports", "💰 Budgets", "🔍 Search",
-         "📈 Jude's Quantitative"],
+         "🔄 Recurring Expense", "📈 Jude's Quantitative"],
     )
 
     if page == "🏠 Dashboard":
@@ -1997,6 +2004,8 @@ def main():
         page_budgets(username)
     elif page == "🔍 Search":
         page_search(username)
+    elif page == "🔄 Recurring Expense":
+        page_recurring(username)
     elif page == "📈 Jude's Quantitative":
         page_jueds_quantitative(username)
 
