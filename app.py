@@ -1962,7 +1962,7 @@ def main():
         st.session_state["recurring_processed"] = True
 
     # FAB — off-screen Streamlit button; floating HTML button clicks it by text match
-    if st.button("__fab_open__", key="fab_trigger"):
+    if st.button("XFABOPENX", key="fab_trigger"):
         st.session_state["show_fab_dialog"] = True
 
     st.markdown("""
@@ -1999,7 +1999,7 @@ div[data-testid="stButton"]:has(button p) {
   function setup(){
     var btns = document.querySelectorAll('button');
     for(var i=0;i<btns.length;i++){
-      if((btns[i].textContent||'').trim()==='__fab_open__'){
+      if((btns[i].textContent||'').trim()==='XFABOPENX'){
         var w=btns[i];
         while(w&&w.getAttribute('data-testid')!=='stButton') w=w.parentElement;
         if(w) w.classList.add('fab-offscreen');
@@ -2011,7 +2011,7 @@ div[data-testid="stButton"]:has(button p) {
   setup();
 })();
 </script>
-<button class="fab-pill" onclick='(function(){var btns=document.querySelectorAll("button");for(var i=0;i<btns.length;i++){if((btns[i].textContent||"").trim()==="__fab_open__"){btns[i].click();return;}}})()'>
+<button class="fab-pill" onclick='(function(){var btns=document.querySelectorAll("button");for(var i=0;i<btns.length;i++){if((btns[i].textContent||"").trim()==="XFABOPENX"){btns[i].click();return;}}})()'>
   ➕ Quick Add Expense
 </button>
 """, unsafe_allow_html=True)
