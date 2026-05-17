@@ -786,10 +786,10 @@ border-radius:14px;padding:20px;margin:12px 0">
 
 @st.dialog("➕ Quick Add")
 def quick_add_dialog(username: str):
-    """Quick expense entry from FAB — stays open so multiple expenses can be added."""
+    """Quick expense entry from FAB — stays open after successful add."""
     from analysis import DISPLAY_NAMES
     import random as _random
-    with st.form("fab_form", clear_on_submit=True):
+    with st.form("fab_form"):
         amount = st.number_input("Amount ($)", min_value=0.01, max_value=float(MAX_AMOUNT), step=1.0, format="%.2f")
         category = st.selectbox("Category", CATEGORIES)
         description = st.text_input("Description (optional)", max_chars=MAX_DESCRIPTION_LENGTH)
@@ -812,6 +812,8 @@ def quick_add_dialog(username: str):
                 st.toast(f"✅ ${amount:,.2f} · {category} added!")
                 if _random.random() < 0.05:
                     st.toast(_random.choice(styles.FORTUNE_MESSAGES))
+                st.session_state["fab_open"] = True  # reopen dialog for next entry
+                st.rerun()
 
 
 def page_add_expense(username: str):
@@ -2150,7 +2152,7 @@ def main():
     if st.query_params.get("fab") == "1":
         del st.query_params["fab"]
         st.session_state["fab_open"] = True
-    if st.session_state.get("fab_open"):
+    if st.session_state.pop("fab_open", False):
         quick_add_dialog(username)
 
     # Sidebar navigation
