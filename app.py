@@ -1954,7 +1954,7 @@ def main():
         process_recurring_expenses()
         st.session_state["recurring_processed"] = True
 
-    # Floating ➕ button — uses JS to update URL in same window (Streamlit rewrites <a> to target=_blank)
+    # Floating ➕ button — plain HTML form GET so browser navigates in same window
     st.markdown("""
 <style>
 .fab-float {
@@ -1966,8 +1966,9 @@ def main():
     border: none; cursor: pointer; color: #fff;
 }
 </style>
-<button class="fab-float" title="Quick Add Expense"
-  onclick="var u=new URL(window.location.href);u.searchParams.set('fab','1');window.location.href=u.toString();">➕</button>
+<form method="get" style="margin:0;padding:0">
+  <button type="submit" name="fab" value="1" class="fab-float" title="Quick Add Expense">➕</button>
+</form>
 """, unsafe_allow_html=True)
 
     # FAB quick-add dialog — clear param immediately so X-close doesn't reopen
