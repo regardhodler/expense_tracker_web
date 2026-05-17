@@ -259,10 +259,11 @@ def get_expenses_between(start_date: date, end_date: date) -> list[dict]:
 def get_recent_expenses(limit: int = 10) -> list[dict]:
     conn = get_connection()
     _sync_read(conn)
+    today = date.today().isoformat()
     rows = conn.execute(
         "SELECT id, date, amount, category, description, added_by, is_tax_writeoff "
-        "FROM expenses ORDER BY date DESC, id DESC LIMIT ?",
-        (limit,),
+        "FROM expenses WHERE date <= ? ORDER BY date DESC, id DESC LIMIT ?",
+        (today, limit),
     ).fetchall()
     return _rows_to_dicts(rows)
 
