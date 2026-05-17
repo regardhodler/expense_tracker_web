@@ -80,12 +80,14 @@ section[data-testid="stSidebar"] { display: none !important; }
 .exp-card:hover { border-color: #c44dff44; }
 
 .avatar {
-    width: 36px; height: 36px;
-    border-radius: 50%;
+    width: 52px; height: 36px;
+    border-radius: 18px;
     background: linear-gradient(135deg, #ff6b9d, #c44dff);
     display: flex; align-items: center; justify-content: center;
-    font-weight: bold; color: #fff; font-size: 0.85em;
+    font-weight: bold; color: #fff; font-size: 0.72em;
     flex-shrink: 0;
+    padding: 0 6px;
+    white-space: nowrap;
 }
 
 .profile-card {
@@ -137,10 +139,11 @@ section[data-testid="stSidebar"] { display: none !important; }
     font-size: 0.55em; display: flex; align-items: center; justify-content: center;
 }
 .user-avatar {
-    width: 30px; height: 30px; border-radius: 50%;
+    height: 30px; border-radius: 15px;
     background: linear-gradient(135deg, #ff6b9d, #c44dff);
     display: flex; align-items: center; justify-content: center;
-    font-size: 0.8em; font-weight: bold; color: #fff;
+    font-size: 0.72em; font-weight: bold; color: #fff;
+    padding: 0 10px; white-space: nowrap;
 }
 
 @media (max-width: 768px) {
@@ -172,7 +175,7 @@ section[data-testid="stSidebar"] { display: none !important; }
 
 def app_header(username: str, notif_count: int = 0) -> str:
     """Branded top header. username = 'husband' | 'wife'."""
-    initial = "J" if username == "husband" else "W"
+    initial = "Jude" if username == "husband" else "Wincyl"
     bell = (
         f'<span class="notif-bell" id="love-logo" onclick="handleLogoPing()">'
         f'💕<span class="notif-badge">{notif_count}</span></span>'
@@ -229,7 +232,7 @@ def card_expense(row: dict, reactions: list[dict], current_user: str) -> str:
     """Single expense card HTML."""
     _DISPLAY = {"husband": "Jude", "wife": "Wincyl"}
     added_by = row.get("added_by", "")
-    initial = "J" if added_by == "husband" else "W"
+    initial = "Jude" if added_by == "husband" else "Wincyl"
     display_name = html.escape(_DISPLAY.get(added_by, added_by))
     desc = row.get("description", "") or ""
     is_recurring = desc.startswith("[Recurring]")
@@ -297,7 +300,7 @@ def card_expense(row: dict, reactions: list[dict], current_user: str) -> str:
 def card_profile(user: str, stats: dict) -> str:
     """Partner profile mini-card."""
     _DISPLAY = {"husband": "Jude", "wife": "Wincyl"}
-    initial = "J" if user == "husband" else "W"
+    initial = "Jude" if user == "husband" else "Wincyl"
     name = _DISPLAY.get(user, user)
     total = stats.get("total", 0.0)
     streak = stats.get("streak", 0)
