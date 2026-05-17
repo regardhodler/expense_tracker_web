@@ -373,3 +373,41 @@ class TestPersonHelpers:
 
     def test_label_unknown_returns_raw(self):
         assert _person_label("unknown") == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# count_down_months
+# ---------------------------------------------------------------------------
+
+from analysis import count_down_months
+
+
+def test_count_down_months_excludes_current_month():
+    # Every month lower than the prior — all pairs are "down"
+    # Jan=1200, Feb=1100, Mar=1000, Apr=900, May=800, ...
+    monthly = {m: (13 - m) * 100.0 for m in range(1, 13)}
+
+    # up_to_month=5 (May) → only pairs (Jan→Feb), (Feb→Mar), (Mar→Apr) counted = 3
+    assert count_down_months(monthly, up_to_month=5) == 3
+
+    # up_to_month=3 (March) → only pair (Jan→Feb) = 1
+    assert count_down_months(monthly, up_to_month=3) == 1
+
+    # up_to_month=1 (January) → range(1,1) is empty → 0
+    assert count_down_months(monthly, up_to_month=1) == 0
+
+    # up_to_month=2 (February current) → only January complete, no pairs yet → 0
+    assert count_down_months(monthly, up_to_month=2) == 0
+
+
+def test_count_down_months_skips_zero_months():
+    # Months with 0 spending should not count as "down"
+    monthly = {1: 1000.0, 2: 0.0, 3: 800.0}
+    # Pair (1→2): vals[1]=0 → skipped. Pair (2→3): vals[1]=0 → skipped.
+    assert count_down_months(monthly, up_to_month=4) == 0
+
+
+def test_count_down_months_up_month():
+    # Spending goes up every month — no down months
+    monthly = {m: m * 100.0 for m in range(1, 13)}
+    assert count_down_months(monthly, up_to_month=12) == 0

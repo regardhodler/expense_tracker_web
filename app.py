@@ -1,13 +1,11 @@
 """Expense Tracker — Streamlit app for couples to track shared expenses."""
 
 import calendar
-import html
 import io
 from datetime import date, datetime
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as st_components
 import streamlit_authenticator as stauth
 
 from database import (
@@ -19,7 +17,6 @@ from database import (
     get_savings_goals, add_savings_goal, update_savings_goal_progress,
     complete_savings_goal, delete_savings_goal,
     add_date_night, get_date_nights, get_date_night_dates, delete_date_night,
-    add_jude_income, get_jude_income, delete_jude_income,
 )
 from analysis import (
     CATEGORIES, PERIOD_OPTIONS, rows_to_dataframe,
@@ -27,39 +24,14 @@ from analysis import (
     expenses_for_day, spending_projections, month_comparison,
     love_points, LOVE_TIERS, LOVE_MESSAGES, canadian_comparison, DISPLAY_NAMES,
     get_streaks, get_monthly_challenges, get_achievements,
-    get_love_history, get_who_spends_more, aggregate_jueds_month,
-    _person_badge, _person_label, per_person_summary,
+    get_love_history, get_who_spends_more, count_down_months,
 )
 from visualization import (
     pie_chart, bar_chart, monthly_trend_chart, comparison_bar_chart,
     canadian_comparison_chart, spending_heatmap, love_history_chart,
-    who_spends_more_chart, savings_goal_chart, yearly_mom_chart, jueds_monthly_chart,
+    who_spends_more_chart, savings_goal_chart, yearly_mom_chart,
 )
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
-
-# ---------------------------------------------------------------------------
-# Category color palette (shared across pages)
-# ---------------------------------------------------------------------------
-
-CAT_COLORS = {
-    "Housing": "#4CAF50",
-    "Food": "#FF9800",
-    "Health": "#E91E63",
-    "Transportation": "#2196F3",
-    "Personal": "#9C27B0",
-    "Entertainment": "#00BCD4",
-    "Utilities": "#FF5722",
-    "Others": "#607D8B",
-}
-
-def _cat_dot(category: str) -> str:
-    """Tiny colored circle for category — use with unsafe_allow_html=True."""
-    color = CAT_COLORS.get(category, "#888")
-    return (
-        f'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;'
-        f'background:{color};margin-right:5px;vertical-align:middle;flex-shrink:0"></span>'
-    )
-
 
 # ---------------------------------------------------------------------------
 # Cached dashboard queries (short TTL to avoid stale data on reruns)
@@ -112,65 +84,6 @@ def inject_pwa():
         """,
         unsafe_allow_html=True,
     )
-
-
-def inject_facebook_css():
-    """Facebook-inspired UI: gray background, white cards, blue primary, pink accents."""
-    st.markdown("""
-        <style>
-        /* Gray page background */
-        .stApp { background-color: #F0F2F5 !important; }
-        /* White sidebar */
-        [data-testid="stSidebar"] { background-color: #FFFFFF !important; }
-        /* Blue primary buttons */
-        [data-testid="baseButton-primary"] button,
-        button[kind="primaryFormSubmit"],
-        .stButton > button[kind="primary"] {
-            background: #1877F2 !important;
-            color: white !important;
-            border-radius: 6px !important;
-            font-weight: 600 !important;
-            border: none !important;
-        }
-        /* White metric cards with pink left accent */
-        [data-testid="stMetric"] {
-            background: white !important;
-            border-radius: 8px !important;
-            padding: 12px 16px !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
-            border-left: 4px solid #E91E8C !important;
-        }
-        /* White form / block containers */
-        [data-testid="stForm"],
-        [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
-            background: white !important;
-            border-radius: 10px !important;
-            padding: 16px !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
-            margin-bottom: 12px !important;
-        }
-        /* Headers */
-        h1, h2, h3 { color: #1C1E21 !important; }
-        /* Readable body text */
-        p, label, .stMarkdown, [data-testid="stMarkdownContainer"] p { color: #1C1E21 !important; }
-        /* Input fields light */
-        input, textarea, select,
-        [data-testid="stTextInput"] input,
-        [data-testid="stNumberInput"] input {
-            background: #F0F2F5 !important;
-            color: #1C1E21 !important;
-            border: 1px solid #CED0D4 !important;
-            border-radius: 6px !important;
-        }
-        /* Selectbox */
-        [data-testid="stSelectbox"] > div > div {
-            background: #F0F2F5 !important;
-            color: #1C1E21 !important;
-            border: 1px solid #CED0D4 !important;
-            border-radius: 6px !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
 
 
 def inject_mobile_css():
@@ -443,6 +356,7 @@ def page_dashboard(username: str):
     )
 
     # 3. Individual Contribution Bars
+    from analysis import DISPLAY_NAMES
     h_pts = lp["points"]["husband"]
     w_pts = lp["points"]["wife"]
     total_pts = lp["combined_points"]
@@ -696,8 +610,7 @@ def page_dashboard(username: str):
                         _cur_cat = [r for r in month_rows if r["category"] == _dash_selected_cat]
                         if _cur_cat:
                             _cur_cat_df = pd.DataFrame(_cur_cat)[["date", "amount", "description", "added_by"]]
-                            _cur_cat_df["added_by"] = _cur_cat_df["added_by"].map(_person_label)
-                            _cur_cat_df.columns = ["Date", "Amount", "Description", "Who is this for?"]
+                            _cur_cat_df.columns = ["Date", "Amount", "Description", "Added By"]
                             _cur_cat_df = _cur_cat_df.sort_values("Date", ascending=False)
                             _cur_cat_df["Amount"] = _cur_cat_df["Amount"].map("${:,.2f}".format)
                             st.dataframe(_cur_cat_df, use_container_width=True, hide_index=True)
@@ -708,8 +621,7 @@ def page_dashboard(username: str):
                         _prev_cat = [r for r in prev_month_rows if r["category"] == _dash_selected_cat]
                         if _prev_cat:
                             _prev_cat_df = pd.DataFrame(_prev_cat)[["date", "amount", "description", "added_by"]]
-                            _prev_cat_df["added_by"] = _prev_cat_df["added_by"].map(_person_label)
-                            _prev_cat_df.columns = ["Date", "Amount", "Description", "Who is this for?"]
+                            _prev_cat_df.columns = ["Date", "Amount", "Description", "Added By"]
                             _prev_cat_df = _prev_cat_df.sort_values("Date", ascending=False)
                             _prev_cat_df["Amount"] = _prev_cat_df["Amount"].map("${:,.2f}".format)
                             st.dataframe(_prev_cat_df, use_container_width=True, hide_index=True)
@@ -746,60 +658,15 @@ def page_dashboard(username: str):
                     f"(${over:,.2f} over)"
                 )
 
-    # Recent expenses — YTD grouped by Today / Yesterday / Past
+    # Recent expenses
     st.subheader("Recent Expenses")
-    if ytd_rows:
-        from datetime import timedelta as _td
-        yesterday = today - _td(days=1)
-        today_str = today.isoformat()
-        yesterday_str = yesterday.isoformat()
-
-        groups = {"Today": [], "Yesterday": [], "Past": []}
-        for r in sorted(ytd_rows, key=lambda x: x["date"], reverse=True):
-            d = r["date"][:10]
-            if d == today_str:
-                groups["Today"].append(r)
-            elif d == yesterday_str:
-                groups["Yesterday"].append(r)
-            else:
-                groups["Past"].append(r)
-
-        for label, rows in groups.items():
-            if not rows:
-                continue
-            group_total = sum(r["amount"] for r in rows)
-            st.markdown(
-                f'<div style="font-weight:700;color:#1877F2;font-size:0.9em;'
-                f'margin:14px 0 4px;border-bottom:2px solid #E4E6EB;padding-bottom:4px">'
-                f'{label} &nbsp;<span style="color:#888;font-weight:400;font-size:0.85em">'
-                f'${group_total:,.2f}</span></div>',
-                unsafe_allow_html=True,
-            )
-            for r in rows:
-                _r_color = "#4a8cff" if r.get("added_by") == "husband" else "#ff6b9d"
-                _r_letter = "J" if r.get("added_by") == "husband" else "W"
-                _r_cat_color = CAT_COLORS.get(r["category"], "#888")
-                _r_date = r["date"][:10]
-                _r_writeoff = (
-                    ' <span style="background:#b45309;color:#fde68a;padding:1px 6px;'
-                    'border-radius:6px;font-size:0.7em">🧾</span>'
-                    if r.get("is_tax_writeoff") else ""
-                )
-                st.markdown(
-                    f'<div style="display:flex;align-items:center;gap:10px;'
-                    f'padding:8px 12px;border-radius:8px;background:white;'
-                    f'margin:3px 0;box-shadow:0 1px 2px rgba(0,0,0,0.06)">'
-                    f'<span style="color:{_r_cat_color};font-size:1.1em">●</span>'
-                    f'<div style="flex:1">'
-                    f'<span style="font-weight:600;color:#1C1E21">${r["amount"]:,.2f}</span>'
-                    f' <span style="color:#606770">{r["category"]}'
-                    + (f' · {r["description"]}' if r.get("description") else "")
-                    + f'</span>{_r_writeoff}</div>'
-                    f'<span style="color:{_r_color};font-weight:700;font-size:0.85em">{_r_letter}</span>'
-                    + (f'<span style="color:#aaa;font-size:0.75em">{_r_date}</span>' if label == "Past" else "")
-                    + f'</div>',
-                    unsafe_allow_html=True,
-                )
+    recent = _cached_recent_expenses(10)
+    if recent:
+        df = pd.DataFrame(recent)
+        df_display = df[["date", "amount", "category", "description", "added_by"]].copy()
+        df_display.columns = ["Date", "Amount", "Category", "Description", "Added By"]
+        df_display["Amount"] = df_display["Amount"].map("${:,.2f}".format)
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
     else:
         st.info("No expenses yet. Add your first one!")
 
@@ -807,32 +674,6 @@ def page_dashboard(username: str):
 
 def page_add_expense(username: str):
     st.header("Add Expense")
-
-    # Last-added confirmation card
-    if "_last_added" in st.session_state:
-        la = st.session_state["_last_added"]
-        _la_color = "#4a8cff" if la["added_by"] == "husband" else "#ff6b9d"
-        _la_letter = "J" if la["added_by"] == "husband" else "W"
-        _la_cat_color = CAT_COLORS.get(la["category"], "#888")
-        st.markdown(
-            f'<div style="background:linear-gradient(135deg,#1e2d1e,#162616);'
-            f'border-radius:14px;padding:14px 20px;margin-bottom:16px;'
-            f'border-left:4px solid #4ade80;border:1px solid #2d4a2d">'
-            f'<div style="display:flex;align-items:center;gap:10px">'
-            f'<span style="font-size:1.2em">✅</span>'
-            f'<div>'
-            f'<div style="font-weight:700;color:#4ade80;font-size:0.9em">Added successfully</div>'
-            f'<div style="color:#ccc;font-size:0.95em;margin-top:2px">'
-            f'<span style="color:{_la_cat_color}">●</span> '
-            f'<strong>${la["amount"]:,.2f}</strong> · {la["category"]}'
-            f'{(" · " + la["description"]) if la["description"] else ""}'
-            f' · <span style="color:{_la_color};font-weight:700">{_la_letter}</span> {la["for_name"]}'
-            + ('  <span style="background:#b45309;color:#fde68a;padding:1px 7px;border-radius:8px;font-size:0.72em;font-weight:600">🧾 Write-Off</span>' if la.get("is_writeoff") else "")
-            + '</div>'
-            f'<div style="color:#666;font-size:0.78em;margin-top:2px">{la["date"]}</div>'
-            f'</div></div></div>',
-            unsafe_allow_html=True,
-        )
 
     with st.form("add_expense_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
@@ -850,14 +691,7 @@ def page_add_expense(username: str):
         else:
             description = st.text_input("Description (optional)", "", max_chars=MAX_DESCRIPTION_LENGTH)
 
-        _person_options = ["Jude", "Wincyl"]
-        _default_for = DISPLAY_NAMES.get(username, "Jude")
-        added_for = st.selectbox(
-            "Who is this for?",
-            _person_options,
-            index=_person_options.index(_default_for) if _default_for in _person_options else 0,
-            key="add_expense_for",
-        )
+        added_for = st.selectbox("Who is this for?", ["Jude", "Wincyl"], key="add_expense_for")
         is_writeoff = st.checkbox("🧾 Tax Write-Off", value=False)
 
         submitted = st.form_submit_button("Add Expense", use_container_width=True)
@@ -881,16 +715,11 @@ def page_add_expense(username: str):
                 else:
                     st.error(msg)
             else:
+                from analysis import DISPLAY_NAMES
                 added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
                 add_expense(exp_date, amount, category, description.strip(), added_by, is_writeoff)
-                st.toast(f"✅ ${amount:,.2f} · {category} added!")
+                st.success(f"Added ${amount:,.2f} for {category} on {exp_date}!")
                 st.session_state.pop("_confirm_duplicate", None)
-                st.session_state["_last_added"] = {
-                    "amount": amount, "category": category,
-                    "description": description.strip(),
-                    "date": str(exp_date), "added_by": added_by,
-                    "for_name": added_for, "is_writeoff": is_writeoff,
-                }
                 st.session_state["_date_night_pending"] = (exp_date, amount)
 
     # --- Date Night Tagging (outside form so it survives rerun) ---
@@ -925,7 +754,7 @@ def page_add_expense(username: str):
                 add_date_night(pending_date, dn_where, dn_how, pending_amount)
                 st.session_state.pop("_date_night_pending", None)
                 st.balloons()
-                st.toast(f"💕 {pending_date.strftime('%B %d')} is now a date night! 🌹")
+                st.success(f"💕 {pending_date.strftime('%B %d')} is now a date night! 🌹")
                 st.rerun()
         if st.button("Skip", key="_dn_skip", type="secondary"):
             st.session_state.pop("_date_night_pending", None)
@@ -949,26 +778,19 @@ def page_monthly_view(username: str):
     rows = get_expenses_between(month_start, month_end)
     df = rows_to_dataframe(rows)
 
-    # --- Per-person summary ---
-    _pps = per_person_summary(rows)
-    _j = _pps["husband"]
-    _w = _pps["wife"]
-    _j_total, _w_total = _j["total"], _w["total"]
-    _delta_j = _j_total - _w_total
-    col_j, col_w = st.columns(2)
-    with col_j:
-        st.metric("Jude", f"${_j_total:,.2f}",
-                  delta=f"${abs(_delta_j):,.2f} {'more' if _delta_j > 0 else 'less'}" if _delta_j != 0 else "Equal",
-                  delta_color="off")
-        st.caption(f"Recurring: ${_j['recurring']:,.2f} · Manual: ${_j['manual']:,.2f}")
-    with col_w:
-        st.metric("Wincyl", f"${_w_total:,.2f}",
-                  delta=f"${abs(_delta_j):,.2f} {'more' if _delta_j < 0 else 'less'}" if _delta_j != 0 else "Equal",
-                  delta_color="off")
-        st.caption(f"Recurring: ${_w['recurring']:,.2f} · Manual: ${_w['manual']:,.2f}")
-
     # Calendar grid
     st.subheader(f"{calendar.month_name[month]} {year}")
+
+    CATEGORY_COLORS = {
+        "Housing": "#4CAF50",
+        "Food": "#FF9800",
+        "Health": "#E91E63",
+        "Transportation": "#2196F3",
+        "Personal": "#9C27B0",
+        "Entertainment": "#00BCD4",
+        "Utilities": "#FF5722",
+        "Others": "#607D8B",
+    }
 
     cal = calendar.Calendar(firstweekday=6)  # Sunday first
     weeks = cal.monthdayscalendar(year, month)
@@ -1011,26 +833,17 @@ def page_monthly_view(username: str):
                 if not day_expenses.empty:
                     for _, exp in day_expenses.iterrows():
                         cat = exp["category"]
-                        color = CAT_COLORS.get(cat, "#999")
+                        color = CATEGORY_COLORS.get(cat, "#999")
                         amt = exp["amount"]
                         desc = exp.get("description", "") or ""
                         is_recurring = desc.startswith("[Recurring]")
                         icon = "&#x21BB; " if is_recurring else ""
                         tooltip = (desc.replace("&", "&amp;").replace("<", "&lt;")
                                       .replace(">", "&gt;").replace('"', "&quot;"))
-                        _who = exp.get("added_by", "")
-                        _letter = "J" if _who == "husband" else ("W" if _who == "wife" else "")
-                        _lcolor = "#4a8cff" if _who == "husband" else "#ff6b9d"
-                        _letter_badge = (
-                            f'<span style="display:inline-flex;align-items:center;justify-content:center;'
-                            f'width:13px;height:13px;border-radius:50%;background:{_lcolor};'
-                            f'color:white;font-size:8px;font-weight:700;vertical-align:middle;'
-                            f'flex-shrink:0">{_letter}</span> '
-                        ) if _letter else ""
                         html += (
                             f'<div title="{tooltip}" style="color:{color};white-space:nowrap;overflow:hidden;'
                             f'text-overflow:ellipsis;font-size:0.75em;line-height:1.4;cursor:default">'
-                            f'{_letter_badge}{icon}${amt:,.0f} {cat}{"🧾" if exp.get("is_tax_writeoff") else ""}</div>'
+                            f'{icon}${amt:,.0f} {cat}</div>'
                         )
                     if len(day_expenses) > 1:
                         day_total = day_expenses["amount"].sum()
@@ -1067,10 +880,9 @@ def page_monthly_view(username: str):
             with st.container(border=True):
                 c1, c2 = st.columns([3, 1])
                 with c1:
-                    _wo_badge = ' <span style="background:#b45309;color:#fde68a;padding:1px 7px;border-radius:8px;font-size:0.72em;font-weight:600">🧾 Write-Off</span>' if exp.get("is_tax_writeoff") else ""
-                    st.markdown(f"{_cat_dot(exp['category'])}<strong>{exp['category']}</strong>{_wo_badge}", unsafe_allow_html=True)
+                    st.markdown(f"**{exp['category']}**")
                     st.caption(exp.get("description", "") or "No description")
-                    st.markdown(f"For: {_person_badge(exp['added_by'])}", unsafe_allow_html=True)
+                    st.caption(f"Added by: {exp['added_by']}")
                 with c2:
                     st.markdown(f"**${exp['amount']:,.2f}**")
 
@@ -1087,8 +899,7 @@ def page_monthly_view(username: str):
     if not df.empty:
         csv_df = df[["date", "amount", "category", "description", "added_by"]].copy()
         csv_df["date"] = csv_df["date"].dt.strftime("%Y-%m-%d")
-        csv_df["added_by"] = csv_df["added_by"].map(_person_label)
-        csv_df.columns = ["Date", "Amount", "Category", "Description", "For"]
+        csv_df.columns = ["Date", "Amount", "Category", "Description", "Added By"]
         st.download_button(
             "Download CSV",
             data=_df_to_csv_bytes(csv_df),
@@ -1101,8 +912,7 @@ def page_monthly_view(username: str):
         with st.expander("All expenses this month"):
             display = df[["date", "amount", "category", "description", "added_by"]].copy()
             display["date"] = display["date"].dt.strftime("%Y-%m-%d")
-            display["added_by"] = display["added_by"].map(_person_label)
-            display.columns = ["Date", "Amount", "Category", "Description", "Who is this for?"]
+            display.columns = ["Date", "Amount", "Category", "Description", "Added By"]
             st.dataframe(display, use_container_width=True, hide_index=True)
 
 
@@ -1118,7 +928,7 @@ def page_analysis(username: str):
     _show_prev = st.checkbox("Compare with prior year", value=True, key="mom_show_prev")
 
     _yr_start = date(_year_sel, 1, 1)
-    _yr_end = date(_year_sel, 12, 31)
+    _yr_end = min(date(_year_sel, 12, 31), _today) if _year_sel == _today.year else date(_year_sel, 12, 31)
     _yr_rows = get_expenses_between(_yr_start, _yr_end)
     _yr_df = rows_to_dataframe(_yr_rows)
 
@@ -1136,12 +946,8 @@ def page_analysis(username: str):
 
     st.plotly_chart(yearly_mom_chart(_monthly, _year_sel, _prev_monthly), use_container_width=True)
 
-    # MoM savings count
-    _mom_vals = [_monthly.get(m, 0) for m in range(1, 13)]
-    _down_months = sum(
-        1 for i in range(1, 12)
-        if _mom_vals[i] > 0 and _mom_vals[i - 1] > 0 and _mom_vals[i] < _mom_vals[i - 1]
-    )
+    # MoM savings count — only completed months (excludes current partial month)
+    _down_months = count_down_months(_monthly, up_to_month=_today.month) if _year_sel == _today.year else count_down_months(_monthly, up_to_month=13)
     if _down_months > 0:
         st.success(f"💚 {_down_months} month{'s' if _down_months > 1 else ''} with lower spending than the prior month — that's +{_down_months * 3} love points earned this year!")
 
@@ -1176,8 +982,7 @@ def page_analysis(username: str):
     # CSV download for this period
     csv_df = df[["date", "amount", "category", "description", "added_by"]].copy()
     csv_df["date"] = csv_df["date"].dt.strftime("%Y-%m-%d")
-    csv_df["added_by"] = csv_df["added_by"].map(_person_label)
-    csv_df.columns = ["Date", "Amount", "Category", "Description", "For"]
+    csv_df.columns = ["Date", "Amount", "Category", "Description", "Added By"]
     st.download_button(
         "Download CSV",
         data=_df_to_csv_bytes(csv_df),
@@ -1223,8 +1028,7 @@ def page_analysis(username: str):
         _cat_df = df[df["category"] == _selected_cat].copy()
         _cat_df = _cat_df.sort_values("date", ascending=False)
         _cat_display = _cat_df[["date", "amount", "description", "added_by"]].copy()
-        _cat_display["added_by"] = _cat_display["added_by"].map(_person_label)
-        _cat_display.columns = ["Date", "Amount", "Description", "Who is this for?"]
+        _cat_display.columns = ["Date", "Amount", "Description", "Added By"]
         _cat_display["Amount"] = _cat_display["Amount"].map("${:,.2f}".format)
         st.dataframe(_cat_display, use_container_width=True, hide_index=True)
         st.caption(f"Total: **${_cat_df['amount'].sum():,.2f}** across {len(_cat_df)} transaction(s)")
@@ -1246,22 +1050,6 @@ def page_analysis(username: str):
     # --- Contributions Section ---
     st.divider()
     st.subheader("💰 Contributions")
-
-    # Always-visible YTD snapshot
-    _ytd_today = date.today()
-    _ytd_rows = get_expenses_between(_ytd_today.replace(month=1, day=1), _ytd_today)
-    _ytd_pps = per_person_summary(_ytd_rows)
-    _ytd_grand = _ytd_pps["husband"]["total"] + _ytd_pps["wife"]["total"]
-    _ytd_j_pct = (_ytd_pps["husband"]["total"] / _ytd_grand * 100) if _ytd_grand else 0
-    _ytd_w_pct = (_ytd_pps["wife"]["total"] / _ytd_grand * 100) if _ytd_grand else 0
-    st.caption(f"**YTD {_ytd_today.year}** — {_ytd_today.strftime('%b %d')}")
-    _ytd_c1, _ytd_c2 = st.columns(2)
-    _ytd_c1.metric("Jude · YTD", f"${_ytd_pps['husband']['total']:,.2f}", f"{_ytd_j_pct:.1f}% of total")
-    _ytd_c1.caption(f"Recurring: ${_ytd_pps['husband']['recurring']:,.2f} · Manual: ${_ytd_pps['husband']['manual']:,.2f}")
-    _ytd_c2.metric("Wincyl · YTD", f"${_ytd_pps['wife']['total']:,.2f}", f"{_ytd_w_pct:.1f}% of total")
-    _ytd_c2.caption(f"Recurring: ${_ytd_pps['wife']['recurring']:,.2f} · Manual: ${_ytd_pps['wife']['manual']:,.2f}")
-
-    st.divider()
     contrib_options = ["Weekly", "Monthly", "6 Months", "1 Year", "YTD"]
     contrib_period = st.selectbox("Filter by", contrib_options, key="contrib_filter")
 
@@ -1283,19 +1071,24 @@ def page_analysis(username: str):
         c_end = today
 
     contrib_rows = get_expenses_between(c_start, c_end)
-    contrib_pps = per_person_summary(contrib_rows)
+    contrib_df = rows_to_dataframe(contrib_rows)
 
-    _c_grand = contrib_pps["husband"]["total"] + contrib_pps["wife"]["total"]
-    if _c_grand == 0:
+    if contrib_df.empty:
         st.info(f"No expenses found for {contrib_period}.")
     else:
-        _j_pct = (contrib_pps["husband"]["total"] / _c_grand * 100)
-        _w_pct = (contrib_pps["wife"]["total"] / _c_grand * 100)
+        from analysis import DISPLAY_NAMES
+        by_person = contrib_df.groupby("added_by")["amount"].sum().reset_index()
+        by_person.columns = ["Person", "Total"]
+        grand_total = by_person["Total"].sum()
+        by_person["% Share"] = (by_person["Total"] / grand_total * 100).round(1)
+
         c1, c2 = st.columns(2)
-        c1.metric("Jude", f"${contrib_pps['husband']['total']:,.2f}", f"{_j_pct:.1f}% of total")
-        c1.caption(f"Recurring: ${contrib_pps['husband']['recurring']:,.2f} · Manual: ${contrib_pps['husband']['manual']:,.2f}")
-        c2.metric("Wincyl", f"${contrib_pps['wife']['total']:,.2f}", f"{_w_pct:.1f}% of total")
-        c2.caption(f"Recurring: ${contrib_pps['wife']['recurring']:,.2f} · Manual: ${contrib_pps['wife']['manual']:,.2f}")
+        for i, col in enumerate([c1, c2]):
+            if i < len(by_person):
+                row = by_person.iloc[i]
+                display = DISPLAY_NAMES.get(row["Person"], row["Person"])
+                col.metric(display, f"${row['Total']:,.2f}", f"{row['% Share']}% of total")
+
         st.caption(f"Period: {c_start} to {c_end}")
 
 
@@ -1310,38 +1103,7 @@ def page_budgets(username: str):
         notes = st.text_area("Comments (optional)", placeholder="e.g. Includes groceries and dining out", max_chars=300)
         if st.form_submit_button("Set Budget", use_container_width=True):
             set_budget(category, limit, username, notes)
-            st.toast(f"✅ Budget for {category} set to ${limit:,.2f}")
-
-    # Inline edit form
-    editing_cat = st.session_state.get("_editing_budget")
-    if editing_cat:
-        budgets_all = get_budgets()
-        edit_b = next((b for b in budgets_all if b["category"] == editing_cat), None)
-        if edit_b:
-            st.subheader(f"Edit Budget: {editing_cat}")
-            with st.form("edit_budget_form"):
-                new_limit = st.number_input(
-                    "Monthly Limit ($)", min_value=0.01, max_value=MAX_AMOUNT,
-                    step=10.0, format="%.2f", value=float(edit_b["monthly_limit"]),
-                )
-                new_notes = st.text_area(
-                    "Comments (optional)", value=edit_b.get("notes", ""),
-                    placeholder="e.g. Includes groceries and dining out", max_chars=300,
-                )
-                c_save, c_cancel = st.columns(2)
-                with c_save:
-                    save = st.form_submit_button("Save", use_container_width=True)
-                with c_cancel:
-                    cancel = st.form_submit_button("Cancel", use_container_width=True)
-                if save:
-                    set_budget(editing_cat, new_limit, username, new_notes)
-                    st.session_state.pop("_editing_budget", None)
-                    st.toast(f"✅ {editing_cat} budget updated!")
-                    st.rerun()
-                if cancel:
-                    st.session_state.pop("_editing_budget", None)
-                    st.rerun()
-        return
+            st.success(f"Budget for {category} set to ${limit:,.2f}")
 
     # Show current budgets with progress
     st.subheader("Current Month Progress")
@@ -1360,39 +1122,16 @@ def page_budgets(username: str):
         spent = category_totals.get(cat, 0)
         pct = min(spent / limit_val, 1.0) if limit_val > 0 else 0
 
-        col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
+        col1, col2, col3 = st.columns([3, 1, 1])
         with col1:
             st.progress(pct, text=f"{cat}")
         with col2:
             st.caption(f"${spent:,.2f} / ${limit_val:,.2f}")
         with col3:
             if spent > limit_val:
-                st.error(f"Over ${spent - limit_val:,.2f}")
+                st.error(f"Over by ${spent - limit_val:,.2f}")
             else:
                 st.caption(f"${limit_val - spent:,.2f} left")
-        with col4:
-            if st.button("✏️", key=f"edit_bgt_{cat}", help=f"Edit {cat} budget"):
-                st.session_state["_editing_budget"] = cat
-                st.rerun()
-        with col5:
-            if st.button("🗑️", key=f"del_bgt_{cat}", help=f"Delete {cat} budget"):
-                st.session_state[f"_confirm_del_bgt_{cat}"] = True
-                st.rerun()
-
-        if st.session_state.get(f"_confirm_del_bgt_{cat}"):
-            st.warning(f"Delete the **{cat}** budget?")
-            c_yes, c_no = st.columns(2)
-            with c_yes:
-                if st.button("Yes, delete", key=f"yes_del_bgt_{cat}", type="primary"):
-                    delete_budget(cat)
-                    st.session_state.pop(f"_confirm_del_bgt_{cat}", None)
-                    st.toast(f"🗑️ {cat} budget deleted.")
-                    st.rerun()
-            with c_no:
-                if st.button("Cancel", key=f"no_del_bgt_{cat}"):
-                    st.session_state.pop(f"_confirm_del_bgt_{cat}", None)
-                    st.rerun()
-
         if b.get("notes"):
             st.caption(f"💬 {b['notes']}")
 
@@ -1422,6 +1161,7 @@ def page_recurring(username: str):
                     e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
                 e_description = st.text_input("Description (optional)", value=edit_rec["description"] or "",
                                               max_chars=MAX_DESCRIPTION_LENGTH)
+                from analysis import DISPLAY_NAMES
                 person_options = ["Jude", "Wincyl"]
                 current_person = DISPLAY_NAMES.get(edit_rec.get("added_by", ""), "Jude")
                 e_added_for = st.selectbox("Who is this for?", person_options,
@@ -1459,7 +1199,7 @@ def page_recurring(username: str):
                         st.session_state.pop("editing_recurring_id", None)
                         st.session_state.pop("edit_freq", None)
                         st.session_state.pop("recurring_processed", None)
-                        st.toast("✅ Recurring expense updated!")
+                        st.success("Recurring expense updated!")
                         st.rerun()
                 if cancel:
                     st.session_state.pop("editing_recurring_id", None)
@@ -1478,14 +1218,7 @@ def page_recurring(username: str):
         with col2:
             category = st.selectbox("Category", CATEGORIES)
         description = st.text_input("Description (optional)", "", max_chars=MAX_DESCRIPTION_LENGTH)
-        _person_options = ["Jude", "Wincyl"]
-        _default_for = DISPLAY_NAMES.get(username, "Jude")
-        added_for = st.selectbox(
-            "Who is this for?",
-            _person_options,
-            index=_person_options.index(_default_for) if _default_for in _person_options else 0,
-            key="recurring_expense_for",
-        )
+        added_for = st.selectbox("Who is this for?", ["Jude", "Wincyl"], key="recurring_expense_for")
 
         if frequency == "monthly":
             day_of_month = st.number_input("Day of Month", min_value=1, max_value=31, value=min(date.today().day, 28))
@@ -1499,13 +1232,14 @@ def page_recurring(username: str):
             if not name.strip():
                 st.error("Name is required.")
             else:
+                from analysis import DISPLAY_NAMES
                 added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
                 add_recurring_expense(
                     name.strip(), amount, category, description.strip(),
                     frequency, day_of_month, added_by, start_date,
                 )
                 st.session_state.pop("recurring_processed", None)
-                st.toast(f"✅ Added recurring: {name} — ${amount:,.2f} ({frequency})")
+                st.success(f"Added recurring: {name} — ${amount:,.2f} ({frequency})")
                 st.rerun()
 
     # --- List existing ---
@@ -1516,61 +1250,28 @@ def page_recurring(username: str):
         st.info("No active recurring expenses.")
         return
 
-    # Per-person recurring totals
-    _j_rec = sum(r["amount"] for r in recurring if r["added_by"] == "husband")
-    _w_rec = sum(r["amount"] for r in recurring if r["added_by"] == "wife")
-    _j_count = sum(1 for r in recurring if r["added_by"] == "husband")
-    _w_count = sum(1 for r in recurring if r["added_by"] == "wife")
-    rc1, rc2 = st.columns(2)
-    rc1.metric("Jude", f"${_j_rec:,.2f}/mo", f"{_j_count} item{'s' if _j_count != 1 else ''}")
-    rc2.metric("Wincyl", f"${_w_rec:,.2f}/mo", f"{_w_count} item{'s' if _w_count != 1 else ''}")
-    st.divider()
-
     for rec in recurring:
-        accent = "#4a8cff" if rec["added_by"] == "husband" else "#ff6b9d"
-        schedule_info = ""
-        if rec["frequency"] == "monthly":
-            schedule_info = f"day {rec['day_of_month']}"
-        elif rec.get("start_date"):
-            schedule_info = f"from {rec['start_date']}"
-        last_iso = rec["last_added_date"]
-        if last_iso:
-            last_dt = date.fromisoformat(last_iso)
-            date_label = f"Next: {last_iso}" if last_dt > date.today() else f"Last: {last_iso}"
-        else:
-            date_label = "Not scheduled yet"
-        freq_display = rec["frequency"].capitalize() + (f" · {schedule_info}" if schedule_info else "")
-        desc_part = f" &nbsp;·&nbsp; <span style='color:#888;font-size:0.8em'>{html.escape(rec['description'])}</span>" if rec['description'] else ""
-
-        card_col, btn_col = st.columns([5, 1])
-        with card_col:
+        col1, col2, col3, col4 = st.columns([4, 2, 1, 1])
+        with col1:
+            schedule_info = ""
+            if rec["frequency"] == "monthly":
+                schedule_info = f" (day {rec['day_of_month']})"
+            elif rec.get("start_date"):
+                schedule_info = f" (from {rec['start_date']})"
             st.markdown(
-                f'<div style="background:#2a2a3e;border-radius:14px;padding:14px 18px;'
-                f'margin:6px 0;border-left:3px solid {accent};'
-                f'box-shadow:0 2px 12px rgba(0,0,0,0.2);'
-                f'border-top:1px solid rgba(255,255,255,0.07);'
-                f'border-right:1px solid rgba(255,255,255,0.07);'
-                f'border-bottom:1px solid rgba(255,255,255,0.07)">'
-                f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
-                f'{_person_badge(rec["added_by"])}'
-                f'<span style="font-weight:700;font-size:1rem;color:#f0f0f0">{html.escape(rec["name"])}</span>'
-                f'<span style="margin-left:auto;font-weight:800;font-size:1rem;color:{accent}">${rec["amount"]:,.2f}</span>'
-                f'</div>'
-                f'<div style="color:#888;font-size:0.8em;display:flex;gap:16px;flex-wrap:wrap">'
-                f'<span>{_cat_dot(rec["category"])}{rec["category"]}</span>'
-                f'<span>🔁 {freq_display}</span>'
-                f'<span>🕐 {date_label}</span>'
-                f'{desc_part}'
-                f'</div>'
-                f'</div>',
-                unsafe_allow_html=True,
+                f"**{rec['name']}** — ${rec['amount']:,.2f} / {rec['frequency']}{schedule_info}  \n"
+                f"Category: {rec['category']}"
+                + (f" | {rec['description']}" if rec['description'] else "")
             )
-        with btn_col:
-            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-            if st.button("Edit", key=f"edit_{rec['id']}", use_container_width=True):
+        with col2:
+            last = rec["last_added_date"] or "Never"
+            st.caption(f"Last added: {last}")
+        with col3:
+            if st.button("Edit", key=f"edit_{rec['id']}"):
                 st.session_state["editing_recurring_id"] = rec["id"]
                 st.rerun()
-            if st.button("Remove", key=f"deactivate_{rec['id']}", use_container_width=True):
+        with col4:
+            if st.button("Deactivate", key=f"deactivate_{rec['id']}"):
                 deactivate_recurring_expense(rec["id"])
                 st.session_state.pop("recurring_processed", None)
                 st.rerun()
@@ -1592,11 +1293,7 @@ def page_search(username: str):
     with col3:
         selected_categories = st.multiselect("Categories", CATEGORIES, default=CATEGORIES)
     with col4:
-        _person_display_options = ["Jude", "Wincyl"]
-        selected_persons = st.multiselect("For", _person_display_options, default=_person_display_options)
-        # map back to internal keys for filtering
-        _display_to_key = {v: k for k, v in DISPLAY_NAMES.items()}
-        selected_users = [_display_to_key[p] for p in selected_persons if p in _display_to_key]
+        selected_users = st.multiselect("Added by", ["husband", "wife"], default=["husband", "wife"])
 
     col5, col6 = st.columns(2)
     with col5:
@@ -1645,8 +1342,7 @@ def page_search(username: str):
     # Results table
     display = filtered[["date", "amount", "category", "description", "added_by"]].copy()
     display["date"] = display["date"].dt.strftime("%Y-%m-%d")
-    display["added_by"] = display["added_by"].map(_person_label)
-    display.columns = ["Date", "Amount", "Category", "Description", "Who is this for?"]
+    display.columns = ["Date", "Amount", "Category", "Description", "Added By"]
     display["Amount"] = filtered["amount"].map("${:,.2f}".format)
     st.dataframe(display, use_container_width=True, hide_index=True)
 
@@ -1678,12 +1374,6 @@ def page_manage_expenses(username: str):
             e_category = st.selectbox("Category", CATEGORIES, index=cat_idx)
             e_description = st.text_input("Description", value=expense["description"] or "",
                                           max_chars=MAX_DESCRIPTION_LENGTH)
-            _edit_person_options = ["Jude", "Wincyl"]
-            _edit_current_person = DISPLAY_NAMES.get(expense.get("added_by", ""), "Jude")
-            e_added_for = st.selectbox(
-                "Who is this for?", _edit_person_options,
-                index=_edit_person_options.index(_edit_current_person) if _edit_current_person in _edit_person_options else 0,
-            )
             e_writeoff = st.checkbox("🧾 Tax Write-Off", value=bool(expense.get("is_tax_writeoff", 0)))
 
             col_save, col_cancel = st.columns(2)
@@ -1700,10 +1390,9 @@ def page_manage_expenses(username: str):
                 if not valid:
                     st.error(msg)
                 else:
-                    e_added_by = next((k for k, v in DISPLAY_NAMES.items() if v == e_added_for), expense.get("added_by"))
-                    update_expense(editing_id, e_date, e_amount, e_category, e_description.strip(), e_writeoff, e_added_by)
+                    update_expense(editing_id, e_date, e_amount, e_category, e_description.strip(), e_writeoff)
                     st.session_state.pop("editing_expense_id", None)
-                    st.toast("✅ Expense updated!")
+                    st.success("Expense updated!")
                     st.rerun()
             if cancel:
                 st.session_state.pop("editing_expense_id", None)
@@ -1728,35 +1417,22 @@ def page_manage_expenses(username: str):
             st.info("No expenses in this range.")
         else:
             for row in rows:
-                writeoff_part = ' &nbsp;<span style="background:#b45309;color:#fde68a;padding:1px 7px;border-radius:8px;font-size:0.72em;font-weight:600">🧾 Write-Off</span>' if row.get("is_tax_writeoff") else ""
-                accent = "#4a8cff" if row["added_by"] == "husband" else "#ff6b9d"
-                card_col, btn_col = st.columns([5, 1])
-                with card_col:
+                writeoff_badge = " 🧾" if row.get("is_tax_writeoff") else ""
+                col_info, col_edit, col_del = st.columns([5, 1, 1])
+                with col_info:
                     st.markdown(
-                        f'<div style="background:#2a2a3e;border-radius:14px;padding:12px 16px;'
-                        f'margin:5px 0;border-left:3px solid {accent};'
-                        f'box-shadow:0 2px 10px rgba(0,0,0,0.2);'
-                        f'border-top:1px solid rgba(255,255,255,0.07);'
-                        f'border-right:1px solid rgba(255,255,255,0.07);'
-                        f'border-bottom:1px solid rgba(255,255,255,0.07)">'
-                        f'<div style="display:flex;align-items:center;gap:10px">'
-                        f'{_person_badge(row["added_by"])}'
-                        f'<span style="color:#aaa;font-size:0.8em">{row["date"]}</span>'
-                        f'<span style="font-weight:700;color:#f0f0f0">{_cat_dot(row["category"])}{row["category"]}</span>'
-                        f'<span style="color:#888;font-size:0.82em;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{row["description"] or "—"}</span>'
-                        f'<span style="font-weight:800;color:{accent};white-space:nowrap">${row["amount"]:,.2f}</span>'
-                        f'{writeoff_part}'
-                        f'</div>'
-                        f'</div>',
-                        unsafe_allow_html=True,
+                        f"**{row['date']}** | ${row['amount']:,.2f} | "
+                        f"{row['category']} | {row['description'] or '—'} "
+                        f"*(by {row['added_by']})*{writeoff_badge}"
                     )
-                with btn_col:
-                    if st.button("Edit", key=f"edit_exp_{row['id']}", use_container_width=True):
+                with col_edit:
+                    if st.button("Edit", key=f"edit_exp_{row['id']}"):
                         st.session_state["editing_expense_id"] = row["id"]
                         st.rerun()
-                    if st.button("Delete", key=f"del_exp_{row['id']}", use_container_width=True):
+                with col_del:
+                    if st.button("Delete", key=f"del_exp_{row['id']}"):
                         delete_expense(row["id"])
-                        st.toast("🗑️ Expense deleted")
+                        st.success("Expense deleted!")
                         st.rerun()
 
     with tab_tax:
@@ -1806,13 +1482,13 @@ def page_manage_expenses(username: str):
                 added_name = DISPLAY_NAMES.get(row["added_by"], row["added_by"])
                 st.markdown(
                     f"🧾 **{row['date']}** | ${row['amount']:,.2f} | "
-                    f"{row['category']} | {row['description'] or '—'} *(for {added_name})*"
+                    f"{row['category']} | {row['description'] or '—'} *(by {added_name})*"
                 )
 
             st.divider()
             df_export = pd.DataFrame(writeoffs)[["date", "amount", "category", "description", "added_by"]]
-            df_export["added_by"] = df_export["added_by"].map(_person_label)
-            df_export.columns = ["Date", "Amount", "Category", "Description", "Who is this for?"]
+            df_export["added_by"] = df_export["added_by"].map(lambda x: DISPLAY_NAMES.get(x, x))
+            df_export.columns = ["Date", "Amount", "Category", "Description", "Added By"]
             csv_bytes = df_export.to_csv(index=False).encode("utf-8")
             st.download_button(
                 "⬇️ Export as CSV",
@@ -1845,7 +1521,7 @@ def page_savings_goals(username: str):
                 else:
                     cat_val = None if g_category == "None" else g_category
                     add_savings_goal(g_name.strip(), g_target, cat_val, g_emoji, username)
-                    st.toast(f"✅ Goal '{g_name.strip()}' added!")
+                    st.success(f"Goal '{g_name.strip()}' added!")
                     st.rerun()
 
     goals = get_savings_goals()
@@ -1890,12 +1566,12 @@ def page_savings_goals(username: str):
                     if st.button("Save", key=f"save_{g['id']}", use_container_width=True):
                         new_total = round(g["current_amount"] + add_amount, 2)
                         update_savings_goal_progress(g["id"], new_total)
-                        st.toast(f"✅ +${add_amount:,.2f} added!")
+                        st.success(f"+${add_amount:,.2f} added!")
                         st.rerun()
                 with act_col3:
                     if st.button("Complete", key=f"complete_{g['id']}", use_container_width=True):
                         complete_savings_goal(g["id"])
-                        st.toast("🎉 Goal completed!")
+                        st.success("Goal completed! 🎉")
                         st.rerun()
 
             del_col, _ = st.columns([1, 5])
@@ -1905,275 +1581,12 @@ def page_savings_goals(username: str):
                     st.rerun()
 
 
-def page_jueds_quantitative(username: str) -> None:
-    """Jude's personal income vs expense dashboard."""
-    st.header("Jude's Quantitative")
-
-    # ── Year selector ──────────────────────────────────────────────────────
-    current_year = date.today().year
-    year_options = list(range(current_year, current_year - 5, -1))
-    selected_year = st.selectbox("Year", year_options, index=0)
-
-    # ── Income log section ─────────────────────────────────────────────────
-    with st.expander("Log Income", expanded=True):
-        col1, col2, col3, col4 = st.columns([2, 2, 3, 1])
-        with col1:
-            month_names = [calendar.month_name[m] for m in range(1, 13)]
-            income_month = st.selectbox(
-                "Month", month_names,
-                index=date.today().month - 1,
-                key="income_month_select",
-            )
-            income_month_num = month_names.index(income_month) + 1
-        with col2:
-            income_amount = st.number_input(
-                "Amount", min_value=0.01, step=100.0, format="%.2f",
-                key="income_amount_input",
-            )
-        with col3:
-            income_label = st.text_input(
-                "Label (optional)", placeholder="e.g. 1st paycheck",
-                key="income_label_input",
-            )
-        with col4:
-            st.write("")  # vertical alignment spacer
-            st.write("")
-            if st.button("Add", key="add_income_btn", use_container_width=True):
-                if income_amount > 0:
-                    add_jude_income(selected_year, income_month_num, income_amount, income_label or None)
-                    st.toast("✅ Income logged")
-                    st.rerun()
-
-        # Show existing entries for the selected month
-        all_income = get_jude_income(selected_year)
-        month_income = [r for r in all_income if r["month"] == income_month_num]
-        if month_income:
-            st.markdown(f"**{income_month} entries**")
-            for entry in month_income:
-                ec1, ec2, ec3 = st.columns([3, 2, 1])
-                with ec1:
-                    st.write(entry["label"] or "—")
-                with ec2:
-                    st.write(f"${entry['amount']:,.2f}")
-                with ec3:
-                    confirm_key = f"confirm_delete_income_{entry['id']}"
-                    if st.session_state.get(confirm_key):
-                        dc1, dc2 = st.columns(2)
-                        with dc1:
-                            if st.button("Yes, delete", key=f"yes_{entry['id']}",
-                                         use_container_width=True):
-                                delete_jude_income(entry["id"])
-                                st.session_state.pop(confirm_key, None)
-                                st.rerun()
-                        with dc2:
-                            if st.button("Cancel", key=f"cancel_{entry['id']}",
-                                         use_container_width=True):
-                                st.session_state.pop(confirm_key, None)
-                                st.rerun()
-                    else:
-                        if st.button("Delete", key=f"del_{entry['id']}",
-                                     use_container_width=True):
-                            st.session_state[confirm_key] = True
-                            st.rerun()
-        else:
-            st.caption(f"No income entries for {income_month} {selected_year}.")
-
-    # ── Build 12-month data ────────────────────────────────────────────────
-    all_income_year = get_jude_income(selected_year)
-    monthly_rows = []
-
-    for m in range(1, 13):
-        m_start = date(selected_year, m, 1)
-        m_end = date(selected_year, m, calendar.monthrange(selected_year, m)[1])
-        expense_rows = get_expenses_between(m_start, m_end)
-        month_income_rows = [r for r in all_income_year if r["month"] == m]
-
-        agg = aggregate_jueds_month(expense_rows, month_income_rows)
-        has_income = len(month_income_rows) > 0
-
-        monthly_rows.append({
-            "month_label": calendar.month_abbr[m],
-            "month_num": m,
-            "net_income": agg["net_income"],
-            "recurring_expense": agg["recurring_expense"],
-            "manual_expense": agg["manual_expense"],
-            "free_cash_flow": agg["free_cash_flow"],
-            "has_income": has_income,
-        })
-
-    # ── Chart ──────────────────────────────────────────────────────────────
-    st.plotly_chart(jueds_monthly_chart(monthly_rows), use_container_width=True)
-
-    # ── Monthly breakdown table ────────────────────────────────────────────
-    st.subheader("Monthly Breakdown")
-
-    def _fcf_style(val: float, has_income: bool) -> str:
-        if not has_income:
-            return "—"
-        sign = "+" if val >= 0 else ""
-        return f"{sign}${val:,.2f}"
-
-    def _income_display(val: float, has_income: bool) -> str:
-        return f"${val:,.2f}" if has_income else "—"
-
-    table_rows = []
-    for r in monthly_rows:
-        table_rows.append({
-            "Month": r["month_label"],
-            "Net Income": _income_display(r["net_income"], r["has_income"]),
-            "Recurring Expense": f"${r['recurring_expense']:,.2f}",
-            "Manual Expense": f"${r['manual_expense']:,.2f}",
-            "Free Cash Flow": _fcf_style(r["free_cash_flow"], r["has_income"]),
-            "_fcf_raw": r["free_cash_flow"],
-            "_has_income": r["has_income"],
-        })
-
-    display_df = pd.DataFrame(table_rows).drop(columns=["_fcf_raw", "_has_income"])
-
-    def highlight_fcf(row):
-        styles = [""] * len(row)
-        col_idx = list(row.index).index("Free Cash Flow")
-        pos = display_df.index.get_loc(row.name)
-        raw_val = table_rows[pos]["_fcf_raw"]
-        has = table_rows[pos]["_has_income"]
-        if has:
-            if raw_val >= 0:
-                styles[col_idx] = "color: #27ae60; background-color: #eafaf1"
-            else:
-                styles[col_idx] = "color: #c0392b; background-color: #fdedec"
-        return styles
-
-    st.dataframe(
-        display_df.style.apply(highlight_fcf, axis=1),
-        use_container_width=True,
-        hide_index=True,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Floating Action Button dialog
-# ---------------------------------------------------------------------------
-
-@st.dialog("Add Expense")
-def _fab_dialog(username: str):
-    """Compact add-expense modal triggered by the FAB button."""
-    with st.form("fab_add_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            exp_date = st.date_input("Date", value=date.today(), key="fab_date")
-        with col2:
-            amount = st.number_input(
-                "Amount ($)", min_value=0.01, max_value=MAX_AMOUNT, step=0.01,
-                format="%.2f", key="fab_amount",
-            )
-        category = st.selectbox("Category", CATEGORIES, key="fab_category")
-        description = st.text_input("Description", "", max_chars=MAX_DESCRIPTION_LENGTH, key="fab_desc")
-        _person_options = ["Jude", "Wincyl"]
-        _default_for = DISPLAY_NAMES.get(username, "Jude")
-        added_for = st.selectbox(
-            "Who is this for?",
-            _person_options,
-            index=_person_options.index(_default_for) if _default_for in _person_options else 0,
-            key="fab_for",
-        )
-        is_writeoff = st.checkbox("🧾 Tax Write-Off", value=False, key="fab_writeoff")
-        submitted = st.form_submit_button("Add Expense", use_container_width=True)
-
-        if submitted:
-            day_expenses = get_expenses_between(exp_date, exp_date)
-            valid, msg = validate_expense(
-                amount, category, description.strip(),
-                existing_expenses=day_expenses,
-                exp_date=exp_date,
-                confirm_duplicate=False,
-            )
-            if not valid:
-                st.error(msg.replace("DUPLICATE: ", ""))
-            else:
-                added_by = next((k for k, v in DISPLAY_NAMES.items() if v == added_for), username)
-                add_expense(exp_date, amount, category, description.strip(), added_by, is_writeoff)
-                st.toast(f"✅ ${amount:,.2f} · {category} added!")
-                st.session_state["_last_added"] = {
-                    "amount": amount, "category": category,
-                    "description": description.strip(),
-                    "date": str(exp_date), "added_by": added_by,
-                    "for_name": added_for, "is_writeoff": is_writeoff,
-                }
-                st.rerun()
-
-
-def _inject_fab(username: str):
-    """FAB: hidden Streamlit button + JS-injected visible button in parent DOM."""
-    # Hidden proxy button — off-screen, JS will click it
-    if st.button("➕", key="fab_trigger"):
-        _fab_dialog(username)
-
-    # JS: inject visible FAB into parent page, click the hidden proxy on tap
-    st_components.html("""
-    <script>
-    (function() {
-        var doc = window.parent.document;
-
-        // Remove stale FAB from previous render
-        var old = doc.getElementById('jw-fab');
-        if (old) old.remove();
-
-        // Move the hidden Streamlit proxy button off-screen
-        var btns = doc.querySelectorAll('[data-testid="stButton"] button');
-        var proxy = null;
-        for (var i = 0; i < btns.length; i++) {
-            if (btns[i].innerText.trim() === '➕') {
-                proxy = btns[i];
-                proxy.parentElement.style.cssText =
-                    'position:fixed;left:-9999px;top:-9999px;pointer-events:none';
-                break;
-            }
-        }
-
-        // Build visible FAB
-        var fab = doc.createElement('button');
-        fab.id = 'jw-fab';
-        fab.innerHTML = '&#10010;';
-        fab.setAttribute('title', 'Add Expense');
-        fab.style.cssText = [
-            'position:fixed',
-            'top:50%',
-            'right:16px',
-            'transform:translateY(-50%)',
-            'width:56px',
-            'height:56px',
-            'border-radius:50%',
-            'background:#E91E8C',
-            'color:white',
-            'font-size:1.6rem',
-            'font-weight:bold',
-            'border:none',
-            'cursor:pointer',
-            'box-shadow:0 4px 14px rgba(233,30,140,0.45)',
-            'z-index:9998',
-            'display:flex',
-            'align-items:center',
-            'justify-content:center',
-            'line-height:1'
-        ].join(';');
-
-        fab.onclick = function() {
-            if (proxy) { proxy.click(); }
-        };
-
-        doc.body.appendChild(fab);
-    })();
-    </script>
-    """, height=0)
-
-
 # Main
 # ---------------------------------------------------------------------------
 
 def main():
     init_db()
     inject_pwa()
-    inject_facebook_css()
     inject_mobile_css()
     inject_romantic_css()
     authenticator, name, auth_status, username = authenticate()
@@ -2197,13 +1610,13 @@ def main():
         st.sidebar.markdown("💕 **Happy Monthsary!** 💕")
     authenticator.logout("Logout", "sidebar")
 
-    inject_dark_mode_css(False)
+    dark_mode = st.sidebar.checkbox("🌙 Dark Mode", value=True, key="dark_mode")
+    inject_dark_mode_css(dark_mode)
 
     page = st.sidebar.radio(
         "Navigate",
         ["Dashboard", "Add Expense", "Monthly View", "Analysis",
-         "Search", "Budgets", "Recurring Expense", "Manage Expenses", "Savings Goals",
-         "Jude's Quantitative"],
+         "Search", "Budgets", "Recurring Expense", "Manage Expenses", "Savings Goals"],
     )
 
     pages = {
@@ -2216,11 +1629,8 @@ def main():
         "Recurring Expense": page_recurring,
         "Manage Expenses": page_manage_expenses,
         "Savings Goals": page_savings_goals,
-        "Jude's Quantitative": page_jueds_quantitative,
     }
     pages[page](username)
-
-    _inject_fab(username)
 
 
 if __name__ == "__main__":

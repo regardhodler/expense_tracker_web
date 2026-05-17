@@ -650,26 +650,34 @@ def get_love_history(all_rows: list[dict]) -> list[dict]:
 # Who spends more
 # ---------------------------------------------------------------------------
 
+def get_who_spends_more(df: pd.DataFrame) -> pd.DataFrame:
+    """Per category, show Jude vs Wincyl spending."""
+    if df.empty:
+        return pd.DataFrame(columns=["Category", "Jude", "Wincyl", "Leader"])
+
+    jude_totals = df[df["added_by"] == "husband"].groupby("category")["amount"].sum()
+    wincyl_totals = df[df["added_by"] == "wife"].groupby("category")["amount"].sum()
+
+    all_cats = sorted(df["category"].unique())
+    rows = []
+    for cat in all_cats:
+        j = round(float(jude_totals.get(cat, 0)), 2)
+        w = round(float(wincyl_totals.get(cat, 0)), 2)
+        leader = "Jude" if j > w else ("Wincyl" if w > j else "Tied")
+        rows.append({"Category": cat, "Jude": j, "Wincyl": w, "Leader": leader})
+
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Jude's monthly aggregation + person helpers (restored)
+# ---------------------------------------------------------------------------
+
 def aggregate_jueds_month(
     expense_rows: list[dict],
     income_rows: list[dict],
 ) -> dict:
-    """
-    Compute Jude's (husband) financial breakdown for a single month.
-
-    Parameters
-    ----------
-    expense_rows : rows from get_expenses_between() for the target month
-    income_rows  : rows from get_jude_income() filtered to the target month
-
-    Returns
-    -------
-    dict with keys:
-        recurring_expense  – sum of Jude's [Recurring] expenses
-        manual_expense     – sum of Jude's non-recurring expenses
-        net_income         – sum of income_rows amounts
-        free_cash_flow     – net_income - recurring_expense - manual_expense
-    """
+    """Compute Jude's (husband) financial breakdown for a single month."""
     df = rows_to_dataframe(expense_rows)
 
     if df.empty:
@@ -693,82 +701,48 @@ def aggregate_jueds_month(
     }
 
 
-def per_person_summary(rows: list[dict]) -> dict:
-    """Return recurring/manual/total split per person for a list of expense rows.
-
-    Returns
-    -------
-    {
-      "husband": {"recurring": float, "manual": float, "total": float},
-      "wife":    {"recurring": float, "manual": float, "total": float},
-    }
-    """
-    result = {
-        "husband": {"recurring": 0.0, "manual": 0.0, "total": 0.0},
-        "wife":    {"recurring": 0.0, "manual": 0.0, "total": 0.0},
-    }
-    for r in rows:
-        person = r.get("added_by", "")
-        if person not in result:
-            continue
-        amt = float(r.get("amount", 0))
-        desc = r.get("description", "") or ""
-        if desc.startswith("[Recurring]"):
-            result[person]["recurring"] += amt
-        else:
-            result[person]["manual"] += amt
-        result[person]["total"] += amt
-    for p in result:
-        result[p] = {k: round(v, 2) for k, v in result[p].items()}
-    return result
-
-
 def _person_badge(added_by: str) -> str:
-    """Circular letter avatar — use with unsafe_allow_html=True in Streamlit."""
+    """HTML pill badge for use with unsafe_allow_html=True."""
     if added_by == "husband":
         return (
-            '<span style="display:inline-flex;align-items:center;justify-content:center;'
-            'width:22px;height:22px;border-radius:50%;'
-            'background:linear-gradient(135deg,#4a8cff,#0055cc);'
-            'color:white;font-size:11px;font-weight:700;'
-            'box-shadow:0 2px 6px rgba(74,140,255,0.45);'
-            'vertical-align:middle;flex-shrink:0">J</span>'
-            '<span style="margin-left:6px;font-weight:600;font-size:0.85em;'
-            'color:#a0c4ff;vertical-align:middle">Jude</span>'
+            '<span style="background:#3498db;color:white;padding:1px 8px;'
+            'border-radius:10px;font-size:11px;font-weight:600">💙 Jude</span>'
         )
     elif added_by == "wife":
         return (
-            '<span style="display:inline-flex;align-items:center;justify-content:center;'
-            'width:22px;height:22px;border-radius:50%;'
-            'background:linear-gradient(135deg,#ff6b9d,#c44dff);'
-            'color:white;font-size:11px;font-weight:700;'
-            'box-shadow:0 2px 6px rgba(255,107,157,0.45);'
-            'vertical-align:middle;flex-shrink:0">W</span>'
-            '<span style="margin-left:6px;font-weight:600;font-size:0.85em;'
-            'color:#ffb3d1;vertical-align:middle">Wincyl</span>'
+            '<span style="background:#e056a0;color:white;padding:1px 8px;'
+            'border-radius:10px;font-size:11px;font-weight:600">🩷 Wincyl</span>'
         )
     return added_by
 
 
 def _person_label(added_by: str) -> str:
-    """Plain-text label for dataframe cells (no HTML rendering)."""
-    return {"husband": "J · Jude", "wife": "W · Wincyl"}.get(added_by, added_by)
+    """Plain-text emoji label for dataframe cells."""
+    return {"husband": "💙 Jude", "wife": "🩷 Wincyl"}.get(added_by, added_by)
 
 
-def get_who_spends_more(df: pd.DataFrame) -> pd.DataFrame:
-    """Per category, show Jude vs Wincyl spending."""
-    if df.empty:
-        return pd.DataFrame(columns=["Category", "Jude", "Wincyl", "Leader"])
+# ---------------------------------------------------------------------------
+# MoM Down-Month Counter
+# ---------------------------------------------------------------------------
 
-    jude_totals = df[df["added_by"] == "husband"].groupby("category")["amount"].sum()
-    wincyl_totals = df[df["added_by"] == "wife"].groupby("category")["amount"].sum()
+def count_down_months(monthly_totals: dict, up_to_month: int) -> int:
+    """Count months with lower spending than the prior month, for completed months only.
 
-    all_cats = sorted(df["category"].unique())
-    rows = []
-    for cat in all_cats:
-        j = round(float(jude_totals.get(cat, 0)), 2)
-        w = round(float(wincyl_totals.get(cat, 0)), 2)
-        leader = "Jude" if j > w else ("Wincyl" if w > j else "Tied")
-        rows.append({"Category": cat, "Jude": j, "Wincyl": w, "Leader": leader})
+    Args:
+        monthly_totals: dict mapping month number (1-12) to total spending float.
+        up_to_month: current month number (1-12). Only months strictly before this
+                     are considered complete. E.g. if today is May, pass 5 — months
+                     1-4 are complete, month 5 is in progress and excluded.
 
-    return pd.DataFrame(rows)
+    Returns:
+        Number of completed month pairs where spending decreased.
+        Returns 0 if up_to_month <= 1 (no complete pairs yet).
+    """
+    # vals is 0-indexed: vals[0]=Jan, vals[1]=Feb, ..., vals[11]=Dec
+    # Pairs where BOTH months are complete: stop before index (up_to_month - 1)
+    # e.g. up_to_month=5 (May) → compare (Jan,Feb),(Feb,Mar),(Mar,Apr) = range(1,4)
+    vals = [monthly_totals.get(m, 0) for m in range(1, 13)]
+    return sum(
+        1 for i in range(1, up_to_month - 1)
+        if vals[i] > 0 and vals[i - 1] > 0 and vals[i] < vals[i - 1]
+    )
