@@ -282,6 +282,7 @@ def card_expense(row: dict, reactions: list[dict], current_user: str) -> str:
     expense_id = row.get("id", 0)
     amount = row.get("amount", 0)
     badge_html = f'<div style="font-size:0.75em">{badge}</div>' if badge else ""
+    desc_html = f'<div style="color:#aaa;font-size:0.82em;margin-top:4px">{clean_desc}</div>' if clean_desc else ""
     return f"""
 <div class="exp-card" data-expense-id="{expense_id}">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
@@ -291,7 +292,7 @@ def card_expense(row: dict, reactions: list[dict], current_user: str) -> str:
     </div>
   </div>
   <div style="font-size:1.15em;font-weight:bold;color:#ff6b9d">{cat_emoji} &#36;{amount:,.2f} <span style="color:#888;font-weight:normal;font-size:0.8em">{cat}</span></div>
-  {f'<div style="color:#aaa;font-size:0.82em;margin-top:4px">{clean_desc}</div>' if clean_desc else ''}
+  {desc_html}
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">{reaction_html}</div>
 </div>
 """
