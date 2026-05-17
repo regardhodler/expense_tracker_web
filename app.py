@@ -255,6 +255,24 @@ def _df_to_csv_bytes(df: pd.DataFrame) -> bytes:
 # ---------------------------------------------------------------------------
 
 def page_dashboard(username: str):
+    st.markdown("""
+<style>
+div[data-testid="stButton"] > button[kind="primary"] {
+    background: linear-gradient(135deg, #ff6b9d, #c44dff) !important;
+    border: none !important;
+    color: #fff !important;
+    font-weight: bold !important;
+}
+div[data-testid="stButton"] > button[kind="primary"]:hover {
+    background: linear-gradient(135deg, #ff8fb3, #d966ff) !important;
+    border: none !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+    if st.button("➕ Quick Add Expense", use_container_width=True, type="primary", key="dash_add_btn"):
+        quick_add_dialog(username)
+
     st.header("💕 Jude & Wincyl's Love Dashboard")
     _monthsary_banner()
     today = date.today()
@@ -354,9 +372,6 @@ def page_dashboard(username: str):
         st.markdown(styles.card_profile("husband", _profile_stats("husband")), unsafe_allow_html=True)
     with pc2:
         st.markdown(styles.card_profile("wife", _profile_stats("wife")), unsafe_allow_html=True)
-
-    if st.button("➕ Add Expense", use_container_width=True, type="primary", key="dash_add_btn"):
-        quick_add_dialog(username)
 
     st.divider()
 
