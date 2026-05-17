@@ -1339,18 +1339,19 @@ def page_budgets(username: str):
 
     category_totals = get_monthly_category_totals(today.year, today.month)
 
-    # Compute 3-month rolling average per category (excludes current partial month)
-    _avg_by_cat: dict[str, float] = {}
-    for _m_offset in range(1, 4):
-        _mo = today.month - _m_offset
-        _yr = today.year
-        if _mo <= 0:
-            _mo += 12
-            _yr -= 1
-        _avg_by_cat_month = get_monthly_category_totals(_yr, _mo)
-        for _cat, _amt in _avg_by_cat_month.items():
-            _avg_by_cat[_cat] = _avg_by_cat.get(_cat, 0) + _amt
-    _avg_by_cat = {k: v / 3 for k, v in _avg_by_cat.items()}
+    # Compute all-time monthly average per category using all historical data
+    _all_exp = _cached_all_expenses()
+    _cat_month_totals: dict[str, dict[str, float]] = {}
+    for _r in _all_exp:
+        _ym = str(_r.get("date", ""))[:7]
+        _cat = _r.get("category", "Others")
+        if _ym and _ym != str(today)[:7]:  # exclude current partial month
+            _cat_month_totals.setdefault(_cat, {})
+            _cat_month_totals[_cat][_ym] = _cat_month_totals[_cat].get(_ym, 0) + _r.get("amount", 0)
+    _avg_by_cat: dict[str, float] = {
+        _cat: sum(_months.values()) / len(_months)
+        for _cat, _months in _cat_month_totals.items() if _months
+    }
 
     for b in budgets:
         cat = b["category"]
@@ -1392,7 +1393,7 @@ def page_budgets(username: str):
                 avg_vs_budget = f" · <span style='color:#e74c3c'>avg is ${diff:,.0f} over budget</span>"
             else:
                 avg_vs_budget = f" · <span style='color:#2ecc71'>avg is ${-diff:,.0f} under budget</span>"
-        ref_parts = [f"3-mo avg: <strong>${avg:,.2f}</strong>{avg_vs_budget}"]
+        ref_parts = [f"avg/month: <strong>${avg:,.2f}</strong>{avg_vs_budget}"]
         if b.get("notes"):
             ref_parts.append(f"💬 {b['notes']}")
         st.markdown(
