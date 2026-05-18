@@ -39,6 +39,12 @@ from visualization import (
 )
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
 import styles
+from ai_insights import (
+    call_grok,
+    build_dashboard_tip_prompt,
+    build_analysis_insights_prompt,
+    build_budget_coach_prompt,
+)
 
 # ---------------------------------------------------------------------------
 # Cached dashboard queries (short TTL to avoid stale data on reruns)
@@ -770,6 +776,16 @@ min-width:140px;flex:1">
                     f"(${over:,.2f} over)"
                 )
 
+    # AI Tip of the Day
+    with st.expander("💡 AI Tip of the Day", expanded=False):
+        if st.button("Get this month's tip", key="dash_ai_tip_btn"):
+            _dash_budgets = _cached_budgets()
+            _sys, _usr = build_dashboard_tip_prompt(month_rows, prev_month_rows, _dash_budgets)
+            _tip = call_grok(_sys, _usr, max_tokens=80)
+            st.session_state["dash_ai_tip"] = _tip
+        if "dash_ai_tip" in st.session_state:
+            st.info(st.session_state["dash_ai_tip"])
+
     # Upcoming recurring expenses (next 30 days)
     upcoming = get_upcoming_recurring(30)
     if upcoming:
@@ -1336,6 +1352,23 @@ def page_analysis(username: str):
 
         st.caption(f"Period: {c_start} to {c_end}")
 
+    # AI Insights
+    st.divider()
+    st.subheader("💡 AI Insights")
+    st.caption("Ask Grok to analyze this period and suggest where to cut back.")
+    if st.button("Generate insights", key="analysis_ai_btn", type="primary"):
+        _prev_start = start - (end - start)
+        _prev_rows = get_expenses_between(_prev_start, start)
+        _prev_df = rows_to_dataframe(_prev_rows)
+        _comp_df, _, _ = month_comparison(rows, _prev_rows)
+        _cdn = canadian_comparison(df, start, end)
+        _sys, _usr = build_analysis_insights_prompt(summary, total, period, _cdn, _comp_df)
+        _insights = call_grok(_sys, _usr, max_tokens=500)
+        st.session_state["analysis_ai_insights"] = _insights
+    if "analysis_ai_insights" in st.session_state:
+        with st.container(border=True):
+            st.markdown(st.session_state["analysis_ai_insights"])
+
 
 def page_budgets(username: str):
     st.header("Budget Tracking")
@@ -1449,6 +1482,17 @@ def page_budgets(username: str):
             f'avg/month: <strong>${avg:,.2f}</strong>{diff_html}{notes_html}</div>',
             unsafe_allow_html=True,
         )
+
+    # Budget Coach
+    st.divider()
+    st.subheader("💡 Budget Coach")
+    if st.button("Get budget advice", key="budget_ai_btn"):
+        _sys, _usr = build_budget_coach_prompt(budgets, category_totals, _avg_by_cat)
+        _advice = call_grok(_sys, _usr, max_tokens=400)
+        st.session_state["budget_ai_advice"] = _advice
+    if "budget_ai_advice" in st.session_state:
+        with st.container(border=True):
+            st.markdown(st.session_state["budget_ai_advice"])
 
 
 def page_recurring(username: str):
