@@ -40,7 +40,7 @@ from visualization import (
 from validation import validate_expense, MAX_AMOUNT, MAX_DESCRIPTION_LENGTH
 import styles
 from ai_insights import (
-    call_grok,
+    call_ai,
     build_dashboard_tip_prompt,
     build_analysis_insights_prompt,
     build_budget_coach_prompt,
@@ -781,7 +781,7 @@ min-width:140px;flex:1">
         if st.button("Get this month's tip", key="dash_ai_tip_btn"):
             _dash_budgets = _cached_budgets()
             _sys, _usr = build_dashboard_tip_prompt(month_rows, prev_month_rows, _dash_budgets)
-            _tip = call_grok(_sys, _usr, max_tokens=80)
+            _tip = call_ai(_sys, _usr, max_tokens=80)
             st.session_state["dash_ai_tip"] = _tip
         if "dash_ai_tip" in st.session_state:
             st.info(st.session_state["dash_ai_tip"])
@@ -1363,7 +1363,7 @@ def page_analysis(username: str):
         _comp_df, _, _ = month_comparison(rows, _prev_rows)
         _cdn = canadian_comparison(df, start, end)
         _sys, _usr = build_analysis_insights_prompt(summary, total, period, _cdn, _comp_df)
-        _insights = call_grok(_sys, _usr, max_tokens=500)
+        _insights = call_ai(_sys, _usr, max_tokens=500)
         st.session_state["analysis_ai_insights"] = _insights
     if "analysis_ai_insights" in st.session_state:
         with st.container(border=True):
@@ -1488,7 +1488,7 @@ def page_budgets(username: str):
     st.subheader("💡 Budget Coach")
     if st.button("Get budget advice", key="budget_ai_btn"):
         _sys, _usr = build_budget_coach_prompt(budgets, category_totals, _avg_by_cat)
-        _advice = call_grok(_sys, _usr, max_tokens=400)
+        _advice = call_ai(_sys, _usr, max_tokens=400)
         st.session_state["budget_ai_advice"] = _advice
     if "budget_ai_advice" in st.session_state:
         with st.container(border=True):

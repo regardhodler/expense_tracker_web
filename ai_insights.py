@@ -1,55 +1,50 @@
-"""AI-powered budget insights via xAI Grok (OpenAI-compatible API)."""
+"""AI-powered budget insights via Anthropic Claude Haiku."""
 
 import json
 import os
 from datetime import date
 
 
-def _get_xai_key() -> str:
+def _get_anthropic_key() -> str:
     try:
         import streamlit as st
-        return st.secrets.get("XAI_API_KEY", "") or os.environ.get("XAI_API_KEY", "")
+        return st.secrets.get("ANTHROPIC_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "")
     except Exception:
-        return os.environ.get("XAI_API_KEY", "")
+        return os.environ.get("ANTHROPIC_API_KEY", "")
 
 
-def get_grok_client():
-    """Return an OpenAI client pointed at xAI, or None if key is missing."""
-    key = _get_xai_key()
+def get_anthropic_client():
+    """Return an Anthropic client, or None if key is missing."""
+    key = _get_anthropic_key()
     if not key:
         return None
     try:
-        from openai import OpenAI
-        return OpenAI(api_key=key, base_url="https://api.x.ai/v1")
+        import anthropic
+        return anthropic.Anthropic(api_key=key)
     except ImportError:
         return None
 
 
-def call_grok(system: str, user: str, max_tokens: int = 600) -> str:
-    """Call Grok and return the response text. Returns an error string on failure."""
-    client = get_grok_client()
+def call_ai(system: str, user: str, max_tokens: int = 600) -> str:
+    """Call Claude Haiku and return the response text. Returns an error string on failure."""
+    client = get_anthropic_client()
     if client is None:
         return (
             "⚠️ AI insights not available. "
-            "Add your `XAI_API_KEY` to `.streamlit/secrets.toml` or as an environment variable."
+            "Add your `ANTHROPIC_API_KEY` to `.streamlit/secrets.toml` or as an environment variable."
         )
     try:
-        response = client.chat.completions.create(
-            model="grok-4.3",
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            system=system,
+            messages=[{"role": "user", "content": user}],
             max_tokens=max_tokens,
-            temperature=0.7,
         )
-        return response.choices[0].message.content.strip()
+        return response.content[0].text.strip()
     except Exception as e:
         err = str(e)
         if "api_key" in err.lower() or "authentication" in err.lower() or "unauthorized" in err.lower():
-            return "⚠️ Invalid XAI_API_KEY. Please check your key and try again."
-        if "model" in err.lower() or "not found" in err.lower():
-            return f"⚠️ Model not found. Check that 'grok-3' is available on your xAI plan. ({err})"
+            return "⚠️ Invalid ANTHROPIC_API_KEY. Please check your key and try again."
         return f"⚠️ AI call failed: {err}"
 
 
