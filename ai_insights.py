@@ -183,8 +183,11 @@ def build_jueds_quantitative_prompt(
         "1. **Cash Flow Health** — summarize whether Jude is cash-flow positive or negative overall, by how much on average per month, and what that means for his financial stability\n"
         "2. **Best & Worst Months** — identify the strongest and weakest months, explain what drove each (was it income variation, high recurring costs, or discretionary overspending)\n"
         "3. **Spending Pattern** — comment on the split between recurring (fixed) and discretionary expenses across the year; is one consistently higher than expected\n"
-        "4. **One Concrete Action** — the single most impactful change Jude could make to improve his monthly cash flow, with a specific target number if possible\n"
-        "Keep the whole response under 300 words. Be direct and specific — reference actual months and amounts."
+        "4. **Savings Rate** — calculate and comment on Jude's average monthly savings rate (income kept vs earned); flag any months where it dropped below 10%\n"
+        "5. **Trend Direction** — is Jude's cash flow improving or deteriorating month over month; describe the direction and momentum\n"
+        "6. **Income Consistency** — how much does Jude's income vary month to month; is income volatility or spending the bigger risk to his financial health\n"
+        "7. **One Concrete Action** — the single most impactful change Jude could make to improve his monthly cash flow, with a specific target number\n"
+        "Keep the whole response under 500 words. Be direct and specific — reference actual months and amounts."
     )
     return system, user_msg
 

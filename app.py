@@ -2508,7 +2508,7 @@ def page_jueds_quantitative(username: str) -> None:
     st.subheader("💡 AI Cash Flow Analysis")
     if st.button("Analyse my finances", key="jueds_ai_btn"):
         _sys, _usr = build_jueds_quantitative_prompt(monthly_rows, selected_year)
-        _advice = call_ai(_sys, _usr, max_tokens=600)
+        _advice = call_ai(_sys, _usr, max_tokens=900)
         st.session_state["jueds_ai_advice"] = _advice
     if "jueds_ai_advice" in st.session_state:
         with st.container(border=True):
