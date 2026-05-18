@@ -797,18 +797,22 @@ min-width:140px;flex:1">
         for r in upcoming:
             exp_date = date.fromisoformat(str(r["date"])[:10])
             days_away = (exp_date - today).days
-            due_str = f"in {days_away}d" if days_away > 1 else "tomorrow"
+            due_str = "tomorrow" if days_away == 1 else f"in {days_away}d"
             clean_desc = str(r.get("description", "")).replace("[Recurring] ", "")
             cat_emoji = CAT_EMOJI.get(r["category"], "📦")
             added = "Jude" if r.get("added_by") == "husband" else "Wincyl"
+            border_color = "#ff6b9d" if days_away <= 3 else "#c44dff"
             st.markdown(
                 f'<div style="background:#1a1a2e;border-radius:10px;padding:10px 14px;'
-                f'margin-bottom:6px;border-left:3px solid #c44dff;'
-                f'display:flex;justify-content:space-between;align-items:center">'
-                f'<span>{cat_emoji} <strong>{clean_desc}</strong> '
-                f'<span style="color:#888;font-size:0.82em">· {added}</span></span>'
-                f'<span style="color:#ff6b9d;font-weight:bold">&#36;{r["amount"]:,.2f} '
-                f'<span style="color:#888;font-size:0.8em">· {exp_date.strftime("%b %d")} ({due_str})</span></span>'
+                f'margin-bottom:6px;border-left:3px solid {border_color}">'
+                f'<div style="font-size:1em;font-weight:600;color:#f0f0f0">'
+                f'{cat_emoji} {clean_desc}'
+                f'<span style="color:#aaa;font-weight:400;font-size:0.82em"> · {added}</span>'
+                f'</div>'
+                f'<div style="margin-top:3px;font-size:0.9em">'
+                f'<span style="color:#ff6b9d;font-weight:700">&#36;{r["amount"]:,.2f}</span>'
+                f'<span style="color:#999"> · {exp_date.strftime("%b %d")} ({due_str})</span>'
+                f'</div>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
