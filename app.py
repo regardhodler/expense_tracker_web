@@ -44,6 +44,7 @@ from ai_insights import (
     build_dashboard_tip_prompt,
     build_analysis_insights_prompt,
     build_budget_coach_prompt,
+    build_jueds_quantitative_prompt,
 )
 
 # ---------------------------------------------------------------------------
@@ -2501,6 +2502,17 @@ def page_jueds_quantitative(username: str) -> None:
                 )
         else:
             st.info(f"No expenses found for Jude in {drill_month_name} {selected_year}.")
+
+    # AI analysis
+    st.divider()
+    st.subheader("💡 AI Cash Flow Analysis")
+    if st.button("Analyse my finances", key="jueds_ai_btn"):
+        _sys, _usr = build_jueds_quantitative_prompt(monthly_rows, selected_year)
+        _advice = call_ai(_sys, _usr, max_tokens=400)
+        st.session_state["jueds_ai_advice"] = _advice
+    if "jueds_ai_advice" in st.session_state:
+        with st.container(border=True):
+            st.markdown(st.session_state["jueds_ai_advice"])
 
 
 # Main

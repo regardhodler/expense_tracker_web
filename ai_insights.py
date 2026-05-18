@@ -149,6 +149,44 @@ def build_analysis_insights_prompt(
     return system, user_msg
 
 
+def build_jueds_quantitative_prompt(
+    monthly_rows: list,
+    selected_year: int,
+) -> tuple[str, str]:
+    """Returns (system, user) for Jude's Quantitative AI analysis."""
+    months_with_income = [r for r in monthly_rows if r["has_income"]]
+    payload = {
+        "year": selected_year,
+        "months": [
+            {
+                "month": r["month_label"],
+                "net_income": round(r["net_income"], 2),
+                "recurring_expense": round(r["recurring_expense"], 2),
+                "discretionary_expense": round(r["manual_expense"], 2),
+                "free_cash_flow": round(r["free_cash_flow"], 2),
+            }
+            for r in monthly_rows if r["has_income"]
+        ],
+    }
+    if months_with_income:
+        total_income = sum(r["net_income"] for r in months_with_income)
+        total_fcf = sum(r["free_cash_flow"] for r in months_with_income)
+        payload["ytd_income"] = round(total_income, 2)
+        payload["ytd_free_cash_flow"] = round(total_fcf, 2)
+        payload["avg_monthly_fcf"] = round(total_fcf / len(months_with_income), 2)
+
+    user_msg = json.dumps(payload)
+
+    system = _system_prompt() + (
+        " You are reviewing Jude's personal income vs expense data. Respond with:\n"
+        "1. **Cash flow health** — is Jude generally cash-flow positive or negative, and by how much on average\n"
+        "2. **Worst month** — which month had the worst free cash flow and why it likely happened (recurring vs discretionary)\n"
+        "3. **One concrete action** — the single most impactful thing Jude could do to improve his monthly cash flow\n"
+        "Keep the whole response under 150 words."
+    )
+    return system, user_msg
+
+
 def build_budget_coach_prompt(
     budgets: list,
     cat_totals_this_month: dict,
