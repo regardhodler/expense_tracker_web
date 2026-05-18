@@ -56,7 +56,8 @@ def _system_prompt() -> str:
         "Be concise and direct. Give practical, actionable advice. "
         "Never make up data — only reference what you are given. "
         "Avoid generic filler phrases like 'great job' or 'it looks like'. "
-        "Use plain markdown (bullets, bold) so the text renders nicely in Streamlit."
+        "Use plain markdown (bullets, bold) so the text renders nicely in Streamlit. "
+        "IMPORTANT: Write all monetary amounts using the format 'CAD X,XXX' or 'X,XXX CAD' — never use the dollar sign ($) as it breaks rendering."
     )
 
 
@@ -178,11 +179,12 @@ def build_jueds_quantitative_prompt(
     user_msg = json.dumps(payload)
 
     system = _system_prompt() + (
-        " You are reviewing Jude's personal income vs expense data. Respond with:\n"
-        "1. **Cash flow health** — is Jude generally cash-flow positive or negative, and by how much on average\n"
-        "2. **Worst month** — which month had the worst free cash flow and why it likely happened (recurring vs discretionary)\n"
-        "3. **One concrete action** — the single most impactful thing Jude could do to improve his monthly cash flow\n"
-        "Keep the whole response under 150 words."
+        " You are reviewing Jude's personal income vs expense data for the year. Respond with:\n"
+        "1. **Cash Flow Health** — summarize whether Jude is cash-flow positive or negative overall, by how much on average per month, and what that means for his financial stability\n"
+        "2. **Best & Worst Months** — identify the strongest and weakest months, explain what drove each (was it income variation, high recurring costs, or discretionary overspending)\n"
+        "3. **Spending Pattern** — comment on the split between recurring (fixed) and discretionary expenses across the year; is one consistently higher than expected\n"
+        "4. **One Concrete Action** — the single most impactful change Jude could make to improve his monthly cash flow, with a specific target number if possible\n"
+        "Keep the whole response under 300 words. Be direct and specific — reference actual months and amounts."
     )
     return system, user_msg
 
